@@ -1,0 +1,14 @@
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Ignore API Keys (CRITICAL!)
+.env
+
+# Ignore large VectorDB folders
+chroma_db/
+vector_store/
+
+# Ignore SQLite Databases 
+*.db
+*.sqlite3
