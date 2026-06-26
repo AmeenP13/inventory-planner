@@ -1,6 +1,6 @@
-from state import state
+from state import State
 from config import llm
-def recommentaion_agent(state:state):
+def recommentaion_agent(state:State):
     inventory=state['inventory']
     demand=state['demand']
     risk=state['risk']
@@ -18,4 +18,3 @@ def recommentaion_agent(state:state):
     response=llm.invoke(prompt)
     state['recommentaion']=response.content
     return state
-    
