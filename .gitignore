@@ -12,3 +12,6 @@ vector_store/
 # Ignore SQLite Databases 
 *.db
 *.sqlite3
+
+# Ignore ChromaDB
+rag_policy/chroma_db/
