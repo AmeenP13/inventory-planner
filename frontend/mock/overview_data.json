@@ -1,0 +1,72 @@
+{
+  "summary": {
+    "total_skus": {
+      "value": 248,
+      "change": "+12 this month"
+    },
+    "needs_action": {
+      "value": 8,
+      "change": "+3 since yesterday",
+      "detail": "5 critical • 3 low stock"
+    },
+    "avg_velocity": {
+      "value": 6.8,
+      "change": "+18% WOW",
+      "detail": "Units sold per SKU/day"
+    },
+    "avg_skus": {
+      "value": 6,
+      "change": "Stable",
+      "detail": "Stand 9h average"
+    },
+    "critical_alerts": {
+      "value": 15,
+      "change": "Show down 5 days"
+    }
+  },
+  "demand_trend": [
+    {"date": "Jun 12", "Electronics": 130, "Beverages": 70, "Health": 90, "Fitness": 45},
+    {"date": "Jun 14", "Electronics": 120, "Beverages": 80, "Health": 105, "Fitness": 50},
+    {"date": "Jun 16", "Electronics": 160, "Beverages": 75, "Health": 120, "Fitness": 60},
+    {"date": "Jun 18", "Electronics": 190, "Beverages": 95, "Health": 140, "Fitness": 55},
+    {"date": "Jun 20", "Electronics": 240, "Beverages": 110, "Health": 150, "Fitness": 70},
+    {"date": "Jun 22", "Electronics": 210, "Beverages": 100, "Health": 160, "Fitness": 65},
+    {"date": "Jun 24", "Electronics": 260, "Beverages": 120, "Health": 180, "Fitness": 80}
+  ],
+  "snapshot_inventory": [
+    {"sku": "PRD-0041", "product": "Wireless Earbuds Pro", "stock": 12, "days_left": 1.4, "supplier": "TechFlow Ltd", "status": "CRITICAL"},
+    {"sku": "PRD-0087", "product": "Organic Green Tea (100pk)", "stock": 34, "days_left": 3.0, "supplier": "NaturaCo", "status": "LOW STOCK"},
+    {"sku": "PRD-0123", "product": "Running Shoes X9", "stock": 8, "days_left": 2.6, "supplier": "StrideMakers", "status": "CRITICAL"},
+    {"sku": "PRD-0241", "product": "Bluetooth Speaker Mini", "stock": 0, "days_left": 0.0, "supplier": "TechFlow Ltd", "status": "OUT OF STOCK"}
+  ],
+  "alerts": [
+    {
+      "sku": "PRD-0041",
+      "product": "Wireless Earbuds Pro",
+      "status": "CRITICAL",
+      "days_left": 1.4
+    },
+    {
+      "sku": "PRD-0123",
+      "product": "Running Shoes X9",
+      "status": "LOW STOCK",
+      "days_left": 2.6
+    },
+    {
+      "sku": "PRD-0241",
+      "product": "Bluetooth Speaker Mini",
+      "status": "OUT OF STOCK",
+      "days_left": 0.0
+    },
+    {
+      "sku": "PRD-0347",
+      "product": "USB-C Hub 7-Port",
+      "status": "CRITICAL",
+      "days_left": 1.5,
+      "dialog": {
+        "text": "Restock Needed: Multiple products are at critical levels or out of stock and require immediate replenishment.",
+        "timer": "Decision Timer: 1 hour"
+      }
+    }
+  ]
+}

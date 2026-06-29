@@ -1,0 +1,63 @@
+{
+  "timestamp": "2026-06-24 09:47 UTC",
+  "confidence": 94,
+  "status": "ANALYSIS COMPLETE",
+  "rag_policy_context": "Policy RAG analysis retrieved: Bulk Order Discount Clause §4.2 — consolidating TechFlow orders for estimated 8% cost reduction ($1,240 savings). ZenSupply reliability score 83% — flagged for vendor review per Policy §7.1.",
+  "recommendations": [
+    {
+      "id": 1,
+      "sku": "PRD-0241",
+      "product": "Bluetooth Speaker Mini",
+      "urgency": "URGENT ORDER",
+      "reason": "Out of stock. 4.8 units/day velocity. Peak season demand surge detected (+34% WoW).",
+      "units": 80,
+      "supplier": "TechFlow Ltd",
+      "lead_time_days": 3,
+      "approved": true
+    },
+    {
+      "id": 2,
+      "sku": "PRD-0455",
+      "product": "Foam Roller Recovery",
+      "urgency": "ORDER",
+      "reason": "Out of stock. Fitness category trending up. ZenSupply lead time 6 days — order immediately.",
+      "units": 60,
+      "supplier": "ZenSupply",
+      "lead_time_days": 6,
+      "approved": true
+    },
+    {
+      "id": 3,
+      "sku": "PRD-0041",
+      "product": "Wireless Earbuds Pro",
+      "urgency": "ORDER",
+      "reason": "1.4 days of stock remaining at current velocity. Reorder point (50) exceeded.",
+      "units": 200,
+      "supplier": "TechFlow Ltd",
+      "lead_time_days": 3,
+      "approved": true
+    },
+    {
+      "id": 4,
+      "sku": "PRD-0347",
+      "product": "USB-C Hub 7-Port",
+      "urgency": "ORDER",
+      "reason": "1.5 days remaining. Bundled with Earbuds order for shipping efficiency.",
+      "units": 100,
+      "supplier": "TechFlow Ltd",
+      "lead_time_days": 3,
+      "approved": true
+    },
+    {
+      "id": 5,
+      "sku": "PRD-0123",
+      "product": "Running Shoes X9",
+      "urgency": "ORDER",
+      "reason": "2.6 days remaining. Footwear category entering Q3 demand spike — over-order recommended.",
+      "units": 120,
+      "supplier": "StrideMakers",
+      "lead_time_days": 5,
+      "approved": true
+    }
+  ]
+}
