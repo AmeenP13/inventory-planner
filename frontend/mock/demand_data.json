@@ -1,0 +1,50 @@
+{
+  "sales_velocity_trend": [
+    {"date": "Jun 12", "Electronics": 130, "Beverages": 70, "Health": 90, "Fitness": 45},
+    {"date": "Jun 14", "Electronics": 120, "Beverages": 80, "Health": 105, "Fitness": 50},
+    {"date": "Jun 16", "Electronics": 160, "Beverages": 75, "Health": 120, "Fitness": 60},
+    {"date": "Jun 18", "Electronics": 190, "Beverages": 95, "Health": 140, "Fitness": 55},
+    {"date": "Jun 20", "Electronics": 240, "Beverages": 110, "Health": 150, "Fitness": 70},
+    {"date": "Jun 22", "Electronics": 210, "Beverages": 100, "Health": 160, "Fitness": 65},
+    {"date": "Jun 24", "Electronics": 260, "Beverages": 120, "Health": 180, "Fitness": 80}
+  ],
+  "daily_volume_by_category": [
+    {"date": "Jun 19", "category": "Electronics", "volume": 120},
+    {"date": "Jun 19", "category": "Beverages", "volume": 60},
+    {"date": "Jun 19", "category": "Health", "volume": 45},
+    {"date": "Jun 19", "category": "Fitness", "volume": 25},
+    
+    {"date": "Jun 20", "category": "Electronics", "volume": 140},
+    {"date": "Jun 20", "category": "Beverages", "volume": 70},
+    {"date": "Jun 20", "category": "Health", "volume": 55},
+    {"date": "Jun 20", "category": "Fitness", "volume": 30},
+    
+    {"date": "Jun 21", "category": "Electronics", "volume": 155},
+    {"date": "Jun 21", "category": "Beverages", "volume": 65},
+    {"date": "Jun 21", "category": "Health", "volume": 60},
+    {"date": "Jun 21", "category": "Fitness", "volume": 32},
+    
+    {"date": "Jun 22", "category": "Electronics", "volume": 160},
+    {"date": "Jun 22", "category": "Beverages", "volume": 80},
+    {"date": "Jun 22", "category": "Health", "volume": 62},
+    {"date": "Jun 22", "category": "Fitness", "volume": 35},
+    
+    {"date": "Jun 23", "category": "Electronics", "volume": 150},
+    {"date": "Jun 23", "category": "Beverages", "volume": 72},
+    {"date": "Jun 23", "category": "Health", "volume": 58},
+    {"date": "Jun 23", "category": "Fitness", "volume": 28},
+    
+    {"date": "Jun 24", "category": "Electronics", "volume": 175},
+    {"date": "Jun 24", "category": "Beverages", "volume": 90},
+    {"date": "Jun 24", "category": "Health", "volume": 75},
+    {"date": "Jun 24", "category": "Fitness", "volume": 40}
+  ],
+  "top_velocity_skus": [
+    {"sku": "PRD-0312", "product": "Coffee Beans Dark Roast 1kg", "category": "Beverages", "daily_avg": 22.4, "seven_day_total": 157, "trend": "+13.3%", "days_remaining": 6.9},
+    {"sku": "PRD-0193", "product": "Vitamin C Supplement", "category": "Health", "daily_avg": 14.7, "seven_day_total": 103, "trend": "+24.8%", "days_remaining": 14.3},
+    {"sku": "PRD-0087", "product": "Organic Green Tea (100pk)", "category": "Beverages", "daily_avg": 11.2, "seven_day_total": 78, "trend": "+14.0%", "days_remaining": 3.0},
+    {"sku": "PRD-0041", "product": "Wireless Earbuds Pro", "category": "Electronics", "daily_avg": 8.4, "seven_day_total": 59, "trend": "+16.2%", "days_remaining": 1.4},
+    {"sku": "PRD-0418", "product": "Protein Powder Vanilla 2kg", "category": "Health", "daily_avg": 6.8, "seven_day_total": 48, "trend": "+19.5%", "days_remaining": 2.5},
+    {"sku": "PRD-0455", "product": "Foam Roller Recovery", "category": "Fitness", "daily_avg": 1.9, "seven_day_total": 13, "trend": "+17.3%", "days_remaining": 0.0}
+  ]
+}
