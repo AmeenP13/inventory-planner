@@ -1,0 +1,7 @@
+Supplier Management Policy
+
+1. Purchase orders shall only be issued to approved suppliers.
+2. Suppliers must maintain an on-time delivery rate above 95%.
+3. Supplier performance will be reviewed every quarter.
+4. Any supplier with repeated quality issues may be suspended.
+5. All supplier contracts must be renewed annually.

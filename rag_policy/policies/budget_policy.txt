@@ -1,0 +1,7 @@
+Budget Management Policy
+
+1. All purchase orders must stay within the approved monthly procurement budget.
+2. High-value purchases (over ₹50,000) require manager approval.
+3. Budget utilization should be reviewed every month.
+4. Emergency purchases must be documented with justification.
+5. Procurement should prioritize cost-effective suppliers without compromising quality.

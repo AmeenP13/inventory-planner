@@ -1,0 +1,7 @@
+Emergency Inventory Policy
+
+1. Emergency stock is reserved for unexpected demand or supply disruptions.
+2. Emergency stock may only be used with supervisor approval.
+3. Every emergency stock withdrawal must be recorded.
+4. Emergency inventory should be replenished immediately after use.
+5. Critical products must always maintain emergency stock levels.
