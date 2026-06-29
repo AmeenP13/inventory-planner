@@ -1,0 +1,5 @@
+Inventory Replenishment Policy
+
+1. Products with less than 5 days of inventory coverage must be reordered immediately.
+2. Products with 5–10 days of inventory should be monitored daily.
+3. Maintain safety stock equal to 10 days of average sales.

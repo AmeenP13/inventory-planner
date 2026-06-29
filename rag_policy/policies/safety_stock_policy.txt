@@ -1,0 +1,6 @@
+Safety Stock Policy
+
+1. The standard safety stock is 10 days of average sales.
+2. For high-demand products (top 20%), increase safety stock to 15 days.
+3. For low-demand products, reduce safety stock to 7 days.
+4. All safety stock levels should be reviewed monthly.
