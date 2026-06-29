@@ -1,4 +1,4 @@
-from agenticAI.state import state
+from state import state
 def risk_analysis(state:state):
     stock=state['inventory']['current_stock']
     sold=state['inventory']['quantity_sold']

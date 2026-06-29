@@ -1,18 +1,19 @@
-from agenticAI.graph import graph
-from agenticAI.state import state
+from graph import graph
 state=None
 while True:
-    user_input=input('Ask more about related information')
+    user_input=input('Ask More details about product:')
     if user_input.lower().strip() in{'quit','bye','exit'}:
-        print('Existing Browser')
+        print('Exisiting browser')
         break
     state={
         'message':[user_input],
-        'inventory':dict,
-        'demand':dict,
-        'risk':str,
-        'policy':str,
-        'recommentated':str       
-    }
+        'inventory':{},
+        'demand':{},
+        'risk':'',
+        'policy':'',
+        'recommentated':''
+        }
     result=graph.invoke(state)
-    print('')
+    print('\nAI Recommendation')
+    print(result['recommentated'])
+

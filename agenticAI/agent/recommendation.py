@@ -1,10 +1,10 @@
-from agenticAI.config import llm
-from agenticAI.state import state
+from config import llm
+from state import state
 def recommentated_agent(state:state):
     inventory=state['inventory']
     demand=state['demand']
     risk=state['risk']
-    policy=state['risk']
+    policy=state['policy']
     prompt=f"""
     You Are at Autonomous replenishment Inventory Agent
     product name:{inventory['product_name']}
@@ -22,3 +22,4 @@ def recommentated_agent(state:state):
     """
     response=llm.invoke(prompt)
     state['recommentated']=response.content
+    return state

@@ -1,7 +1,6 @@
-from agenticAI.state import state
-from rag_policy.search import
+from state import state
 def rag_agent(state:state):
-    query=state['message'][-1]
-    policy=
+    product=state['inventory']['product_name']
+    policy=f"maintain safety stock for {product}"
     state['policy']=policy
     return state
