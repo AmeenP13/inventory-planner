@@ -15,7 +15,7 @@ def demand_agent(state:state):
         average_daily_sales = total_sold / num_days
         estimated_demand = average_daily_sales * 30
     else:
-        sold=sold = state.get('inventory', {}).get('quantity_sold', 0)
+        sold=state.get('inventory', {}).get('quantity_sold', 0)
         average_daily_sales=sold/30
         estimated_demand=average_daily_sales*30
         
