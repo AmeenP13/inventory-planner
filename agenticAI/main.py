@@ -11,9 +11,12 @@ while True:
         'demand':{},
         'risk':'',
         'policy':'',
-        'recommentated':''
+        'recommendation':''
         }
     result=graph.invoke(state)
-    print('\nAI Recommendation')
-    print(result['recommentated'])
+    if 'error' in result:
+        print(result['error'])
+    else:
+        print('\nAI Inventory Recommendation')
+        print(result['recommendation'])
 
