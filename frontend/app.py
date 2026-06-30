@@ -4,6 +4,7 @@ import json
 import os
 import pandas as pd
 import altair as alt
+import time
 
 # 1. Set Page Configuration
 st.set_page_config(
@@ -457,12 +458,83 @@ st.markdown("""
         background-color: #008fa8;
     }
 
+    /* Circular Loading Spinner & Steps */
+    .spinner-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        background-color: #FFFFFF;
+        border: 1px solid #E4EDF5;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(28, 61, 90, 0.05);
+        max-width: 600px;
+        margin: 60px auto;
+    }
+    
+    .spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #EBF3FC;
+        border-top: 4px solid #00A8C6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 25px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .loading-step {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+        font-size: 13.5px;
+        color: #5B7A9C;
+        width: 100%;
+        max-width: 480px;
+        padding: 10px 18px;
+        border-radius: 8px;
+        background-color: #F8FAFC;
+        border: 1px solid #E4EDF5;
+        transition: all 0.3s ease;
+    }
+    
+    .loading-step.active {
+        color: #1C3D5A;
+        font-weight: 600;
+        border-color: #BFE3F9;
+        background-color: #EBF3FC;
+        box-shadow: 0 2px 4px rgba(0, 168, 198, 0.04);
+    }
+    
+    .loading-step.done {
+        color: #10B981;
+        font-weight: 500;
+        border-color: #D1FAE5;
+        background-color: #F0FDF4;
+    }
+    
+    .loading-step.pending {
+        opacity: 0.65;
+    }
+
+    /* Layout Spacing & Spacing Polish */
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 2rem !important;
+    }
+
     /* Hide Streamlit components */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 </style>
-""", unsafe_allow_html=True)
+""",unsafe_allow_html=True)
 
 # 5. Sidebar Brand & Navigation
 with st.sidebar:
@@ -523,7 +595,7 @@ with st.sidebar:
     # Action Button: Trigger AI Replenishment
     st.markdown("""
     <div class="trigger-btn-container">
-        <a href="?page=AI_Agent" target="_self" class="trigger-btn">
+        <a href="?page=AI_Agent&run=true" target="_self" class="trigger-btn">
             <span>⚡</span> Trigger AI Replenishment
         </a>
     </div>
@@ -1038,22 +1110,96 @@ elif selected_page == "Suppliers":
 # PAGE E: AI AGENT (PROPOSAL)
 # ----------------------------------------------------
 elif selected_page == "AI_Agent":
+    # Simulated Agent Run Execution (Day 5 & 6)
+    params = st.query_params
+    run_agent = params.get("run", "false") == "true"
+    
+    if run_agent:
+        placeholder = st.empty()
+        
+        steps = [
+            {"icon": "🔍", "text": "Querying vector database for procurement policies (RAG)..."},
+            {"icon": "⚙️", "text": "Evaluating vendor reliability & historical lead times..."},
+            {"icon": "💡", "text": "Running discount analysis & safety stock formulas..."},
+            {"icon": "📝", "text": "Generating policy-compliant replenishment proposals..."}
+        ]
+        
+        for i in range(len(steps) + 1):
+            steps_html = ""
+            for idx, step in enumerate(steps):
+                if idx < i:
+                    status_class = "done"
+                    indicator = "🟢 Done"
+                    step_text = f"✓ {step['text']}"
+                elif idx == i:
+                    status_class = "active"
+                    indicator = "⏳ Running"
+                    step_text = f"⚙️ {step['text']}"
+                else:
+                    status_class = "pending"
+                    indicator = "⚪ Pending"
+                    step_text = step['text']
+                    
+                steps_html += f"""
+                <div class="loading-step {status_class}">
+                    <span style="font-size: 16px;">{step['icon']}</span>
+                    <span style="flex-grow: 1;">{step_text}</span>
+                    <span style="font-size: 11px; font-weight: bold; text-transform: uppercase;">{indicator}</span>
+                </div>
+                """
+                
+            loading_card_html = f"""
+            <div class="spinner-container">
+                <div class="spinner"></div>
+                <div style="font-weight: 700; font-size: 18px; color: #1C3D5A; margin-bottom: 20px; text-align: center;">StockMind AI Agent Running Analysis</div>
+                <div style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+                    {steps_html}
+                </div>
+            </div>
+            """
+            placeholder.markdown(loading_card_html, unsafe_allow_html=True)
+            time.sleep(0.8)
+            
+        placeholder.empty()
+        st.query_params["run"] = "false"
+        st.rerun()
+        
     recs = st.session_state.proposal_db
     
-    # 1. Proposal Banner
-    st.markdown(f"""
-    <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 18px 24px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(28,61,90,0.01);">
-        <div>
-            <div style="font-weight: 700; font-size: 17px; color: #1C3D5A;">AI Replenishment Proposal</div>
-            <div style="font-size: 12px; color: #8CA0B8; margin-top: 4px;">Generated: {agent_proposal["timestamp"]} • Confidence: <span style="color: #10B981; font-weight: 700;">{agent_proposal["confidence"]}%</span></div>
+    # 1. Proposal Banner with interactive re-run button
+    col_banner_info, col_banner_btn = st.columns([3.2, 0.8])
+    with col_banner_info:
+        st.markdown(f"""
+        <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(28,61,90,0.01); height: 85px;">
+            <div>
+                <div style="font-weight: 700; font-size: 17px; color: #1C3D5A;">AI Replenishment Proposal</div>
+                <div style="font-size: 12px; color: #8CA0B8; margin-top: 4px;">Generated: {agent_proposal["timestamp"]} • Confidence: <span style="color: #10B981; font-weight: 700;">{agent_proposal["confidence"]}%</span></div>
+            </div>
+            <div>
+                <span style="background-color: #D1FAE5; color: #10B981; border: 1px solid #10B98130; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+                    ● ANALYSIS COMPLETE
+                </span>
+            </div>
         </div>
-        <div>
-            <span style="background-color: #D1FAE5; color: #10B981; border: 1px solid #10B98130; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
-                ● ANALYSIS COMPLETE
-            </span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+    with col_banner_btn:
+        st.markdown("""
+        <style>
+        div[data-testid="column"] button {
+            background-color: #00A8C6 !important;
+            color: white !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            border: none !important;
+            height: 85px !important;
+            margin-top: 0px !important;
+            font-size: 14px !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        if st.button("⚡ Re-run AI Agent", key="run_proposal_analysis_banner", use_container_width=True):
+            st.query_params["run"] = "true"
+            st.rerun()
     
     # 2. RAG policy context log card
     st.markdown(f"""
