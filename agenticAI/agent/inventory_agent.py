@@ -1,49 +1,27 @@
 from state import State
-from backend.app.database import get_connection
+import pandas as pd
 from datetime import datetime, timedelta
 def inventory_agent(state: State):
-
+    df = pd.read_csv("agenticAI/data/final_inventory_dataset_real_products.csv")
     product_name = state["message"][-1].content.lower().strip()
-    conn = get_connection()
-    query = """
-    SELECT
-        p.product_name,
-        i.date,
-        i.current_stock,
-        s.quantity_sold,
-        p.supplier_id,
-        p.avg_lead_time_day,
-        p.cost_price,
-        p.base_price,
-        s.customer_rating,
-        i.expiry_date
-    FROM products p
-    JOIN inventory_daily i
-        ON p.product_id = i.product_id
-    JOIN sales s
-        ON p.product_id = s.product_id
-       AND i.date = s.date
-    WHERE LOWER(p.product_name) = LOWER(?)
-    ORDER BY i.date
-    """
-    rows = conn.execute(query, (product_name,)).fetchall()
-    conn.close()
-    if not rows:
+    products = df[df["product_name"].str.lower().str.strip() == product_name]
+    if products.empty:
         state["error"] = f"Product '{product_name}' not found."
         return state
+    products = products.sort_values("date")
     inventory_history = []
-    for row in rows:
+    for _, product in products.iterrows():
         inventory_history.append({
-            "date": row["date"],
-            "product_name": row["product_name"],
-            "current_stock": int(row["current_stock"]),
-            "quantity_sold": int(row["quantity_sold"]),
-            "supplier_id": row["supplier_id"],
-            "lead_time": int(row["avg_lead_time_day"]),
-            "cost_price": float(row["cost_price"]),
-            "base_price": float(row["base_price"]),
-            "customer_rating": float(row["customer_rating"]),
-            "expiry_date": row["expiry_date"]
+            "date": product["date"],
+            "product_name": product["product_name"],
+            "current_stock": int(product["current_stock"]),
+            "quantity_sold": int(product["quantity_sold"]),
+            "supplier_id": product["supplier_id"],
+            "lead_time": int(product["avg_lead_time_day"]),
+            "cost_price": float(product["cost_price"]),
+            "base_price": float(product["base_price"]),
+            "customer_rating": float(product["customer_rating"]),
+            "expiry_date": product["expiry_date"]
         })
     state["all_dates_inventory"] = inventory_history
     latest = inventory_history[-1]
