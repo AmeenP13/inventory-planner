@@ -1,14 +1,4 @@
-from langchain_community.embeddings import SentenceTransformerEmbeddings
-from langchain_community.vectorstores import Chroma
-
-embedding_model = SentenceTransformerEmbeddings(
-    model_name="all-MiniLM-L6-v2"
-)
-
-vector_db = Chroma(
-    persist_directory="rag_policy/chroma_db",
-    embedding_function=embedding_model
-)
+from vector_db import vector_db
 
 def search_policy(user_query):
 
