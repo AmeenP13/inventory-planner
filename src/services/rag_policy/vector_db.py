@@ -1,15 +1,23 @@
 from pathlib import Path
-from langchain_community.embeddings import SentenceTransformerEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
 
-# Load embedding model
-embedding_model = SentenceTransformerEmbeddings(
-    model_name="all-MiniLM-L6-v2"
-)
+EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+CHROMA_DIR = Path(__file__).resolve().parent / "chroma_db"
 
-# Load existing Chroma database
-DB_PATH = Path(__file__).resolve().parent / "chroma_db"
-vector_db = Chroma(
-    persist_directory=str(DB_PATH),
-    embedding_function=embedding_model
-)
+
+def _ensure_vector_store() -> None:
+    if not CHROMA_DIR.exists() or not any(CHROMA_DIR.iterdir()):
+        from .ingest import main as build_policy_db
+
+        print("Chroma vector store not found. Building from policy documents...")
+        build_policy_db()
+
+
+def get_vector_db() -> Chroma:
+    _ensure_vector_store()
+    embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+    return Chroma(
+        persist_directory=str(CHROMA_DIR),
+        embedding_function=embedding_model,
+    )
