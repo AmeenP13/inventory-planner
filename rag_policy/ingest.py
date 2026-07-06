@@ -1,65 +1,72 @@
+import os
 from pathlib import Path
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import SentenceTransformerEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
+
+POLICY_FOLDER = Path("rag_policy/policies")
+CHROMA_DIR = Path("rag_policy/chroma_db")
+EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+CHUNK_SIZE = 300
+CHUNK_OVERLAP = 50
 
 
-
-# Step 1: Read Policy Documents
-
-
-policy_folder = Path("rag_policy/policies")
-
-all_chunks = []
-
-splitter = RecursiveCharacterTextSplitter(
-    chunk_size=300,
-    chunk_overlap=50
-)
-
-for file in policy_folder.glob("*.txt"):
-
-    print(f"\nReading: {file.name}")
-
-    text = file.read_text(encoding="utf-8")
-
-    chunks = splitter.split_text(text)
-
-    print(f"Number of chunks: {len(chunks)}")
-
-    for i, chunk in enumerate(chunks, start=1):
-        print(f"\nChunk {i}")
-        print(chunk)
-
-    all_chunks.extend(chunks)
+def _ensure_hf_token() -> None:
+    if not os.environ.get("HF_TOKEN"):
+        print(
+            "Warning: set HF_TOKEN in your environment to avoid unauthenticated HF Hub requests."
+        )
 
 
+def _load_policy_documents(policy_path: Path) -> list[str]:
+    chunks = []
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+    )
 
-# Step 2: Create Embedding Model
+    for file in policy_path.glob("*.txt"):
+        print(f"\nReading: {file.name}")
+        text = file.read_text(encoding="utf-8")
+        file_chunks = splitter.split_text(text)
+        print(f"Number of chunks: {len(file_chunks)}")
+        chunks.extend(file_chunks)
+
+    return chunks
 
 
-print("\nLoading embedding model...")
-
-embedding_model = SentenceTransformerEmbeddings(
-    model_name="all-MiniLM-L6-v2"
-)
-
-print("Embedding model loaded successfully.")
+def _create_embedding_model() -> HuggingFaceEmbeddings:
+    return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
 
 
-# Step 3: Store in ChromaDB
+def _create_vector_db(chunks: list[str], embedding_model: HuggingFaceEmbeddings) -> Chroma:
+    return Chroma.from_texts(
+        texts=chunks,
+        embedding=embedding_model,
+        persist_directory=str(CHROMA_DIR),
+    )
 
-print("\nCreating Chroma Vector Database...")
 
-vector_db = Chroma.from_texts(
-    texts=all_chunks,
-    embedding=embedding_model,
-    persist_directory="rag_policy/chroma_db"
-)
+def main() -> None:
+    _ensure_hf_token()
 
-vector_db.persist()
+    policy_chunks = _load_policy_documents(POLICY_FOLDER)
+    if not policy_chunks:
+        print("No policy documents found.")
+        return
 
-print("\nPolicies stored successfully in ChromaDB!")
+    print("\nLoading embedding model...")
+    embedding_model = _create_embedding_model()
+    print("Embedding model loaded successfully.")
 
-print(f"\nTotal chunks stored: {len(all_chunks)}")
+    print("\nCreating Chroma Vector Database...")
+    vector_db = _create_vector_db(policy_chunks, embedding_model)
+    vector_db.persist()
+
+    print("\nPolicies stored successfully in ChromaDB!")
+    print(f"\nTotal chunks stored: {len(policy_chunks)}")
+
+
+if __name__ == "__main__":
+    main()

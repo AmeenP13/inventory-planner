@@ -1,57 +1,108 @@
 from config import llm
 from state import State
-def recommentated_agent(state: State):
+
+
+def recommendation_agent(state: State):
     if state.get("error"):
         state["recommendation"] = f"Error: {state['error']}"
         return state
+
     inventory = state.get("inventory", {})
-    next_inventory = state.get("next_day_inventory")
-    all_dates = state.get("all_dates_inventory")
-    demand = state.get("demand", {})
+    next_inventory = state.get("next_day_inventory") or {}
+    all_dates = state.get("all_dates_inventory", []) or []
+    demand = state.get("demand", {}) or {}
     risk = state.get("risk", "N/A")
     policy = state.get("policy", "N/A")
-    if next_inventory:
-        next_day_str = (
-            f"Date: {next_inventory.get('date','N/A')}, "
-            f"Stock: {next_inventory.get('current_stock',0)}, "
-            f"Sold: {next_inventory.get('quantity_sold',0)}"
-        )
-    else:
-        next_day_str = "N/A"
-    if all_dates:
-        dates_summary_list = []
-        for item in all_dates:
-            dates_summary_list.append(
-                f"Date: {item.get('date','N/A')} | "
-                f"Stock: {item.get('current_stock',0)} | "
-                f"Sold: {item.get('quantity_sold',0)} | "
-                f"Avg Daily Sales: {item.get('average_daily_sales',0):.2f} | "
-                f"Estimated Demand: {item.get('estimated_demand',0):.2f} | "
-                f"Risk: {item.get('risk','N/A')}"
-            )
-        dates_summary = "\n".join(dates_summary_list)
-    else:
-        dates_summary = "N/A"
+
     avg_sales = demand.get("average_daily_sales", 0.0)
     est_demand = demand.get("estimated_demand", 0.0)
 
-    prompt = f"""
+    dates_summary = _format_history_summary(all_dates)
+    next_day_str = _format_next_day_details(next_inventory, avg_sales, est_demand)
+
+    prompt = _build_prompt(
+        inventory=inventory,
+        dates_summary=dates_summary,
+        next_day_str=next_day_str,
+        avg_sales=avg_sales,
+        est_demand=est_demand,
+        risk=risk,
+        policy=policy,
+    )
+
+    response = llm.invoke(prompt)
+    recommendation = response.content.strip()
+    print(recommendation)
+    state["recommendation"] = recommendation
+    return state
+
+
+def _format_history_summary(history: list[dict]) -> str:
+    if not history:
+        return "N/A"
+
+    lines = []
+    for item in history:
+        lines.append(
+            "Date: {date} | Stock: {current_stock} | Sold: {quantity_sold} | "
+            "Avg Daily Sales: {avg_daily_sales:.2f} | Estimated Demand: {estimated_demand:.2f} | "
+            "Risk: {risk}".format(
+                date=item.get("date", "N/A"),
+                current_stock=item.get("current_stock", 0),
+                quantity_sold=item.get("quantity_sold", 0),
+                avg_daily_sales=item.get("average_daily_sales", 0.0),
+                estimated_demand=item.get("estimated_demand", 0.0),
+                risk=item.get("risk", "N/A"),
+            )
+        )
+    return "\n".join(lines)
+
+
+def _format_next_day_details(next_inventory: dict, avg_sales: float, est_demand: float) -> str:
+    if not next_inventory:
+        return "N/A"
+
+    return (
+        f"Date: {next_inventory.get('date', 'N/A')} | "
+        f"Stock: {next_inventory.get('current_stock', 0)} | "
+        f"Sold: {next_inventory.get('quantity_sold', 0)} | "
+        f"Avg Daily Sales: {avg_sales:.2f} | "
+        f"Estimated Demand: {est_demand:.2f}"
+    )
+
+
+def _build_prompt(
+    inventory: dict,
+    dates_summary: str,
+    next_day_str: str,
+    avg_sales: float,
+    est_demand: float,
+    risk: str,
+    policy: str,
+) -> str:
+    return f"""
 You are an Autonomous AI Replenishment Agent.
 
 Analyze the following inventory information and generate a recommendation.
 
-Product Name: {inventory.get('product_name','Unknown')}
-Latest Date: {inventory.get('date','N/A')}
-Current Stock: {inventory.get('current_stock',0)}
-Quantity Sold: {inventory.get('quantity_sold',0)}
+Product Name: {inventory.get('product_name', 'Unknown')}
+
+Latest Date: {inventory.get('date', 'N/A')}
+
+Current Stock: {inventory.get('current_stock', 0)}
+
+Quantity Sold: {inventory.get('quantity_sold', 0)}
+
 Historical Data Summary:
 {dates_summary}
+
 Next Day Details:
 {next_day_str}
+
 Average Daily Sales: {avg_sales:.2f}
 Estimated Demand: {est_demand:.2f}
-Supplier ID: {inventory.get('supplier_id','N/A')}
-Lead Time: {inventory.get('lead_time','N/A')} days
+Supplier ID: {inventory.get('supplier_id', 'N/A')}
+Lead Time: {inventory.get('lead_time', 'N/A')} days
 Risk Level: {risk}
 Company Policy:
 {policy}
@@ -84,7 +135,3 @@ Company Policy:
 Reason:
 Explain in 2-4 lines why this recommendation was made.
 """
-    response = llm.invoke(prompt)
-    print(response.content)
-    state["recommendation"] = response.content
-    return state

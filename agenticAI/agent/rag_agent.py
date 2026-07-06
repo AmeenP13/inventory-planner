@@ -1,62 +1,51 @@
 import os
 import sys
 
-project_root = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..")
-)
+from state import State
 
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 rag_path = os.path.join(project_root, "rag_policy")
 
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+for path in (project_root, rag_path):
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
-if rag_path not in sys.path:
-    sys.path.insert(0, rag_path)
-
-from state import State
 from rag_policy.search import search_policy
 
 
 def rag_agent(state: State):
-
     if state.get("error"):
         return state
 
-    inventory = state.get("inventory", {})
-    product = inventory.get("product_name", "Unknown Product")
-
+    product = _get_product_name(state)
     all_dates = state.get("all_dates_inventory", [])
 
-    # Retrieve policy for every historical record
     if all_dates:
-
-        for item in all_dates:
-
-            risk = item.get("risk", "Low")
-
-            query = (
-                f"What is the company policy for {product} "
-                f"when inventory risk is {risk}?"
-            )
-
-            policy = search_policy(query)
-
-            item["policy"] = policy
-
-        # Store latest policy and risk
-        latest = all_dates[-1]
-        state["policy"] = latest.get("policy", "N/A")
-        state["risk"] = latest.get("risk", "Low")
-
+        _annotate_history_with_policy(all_dates, product)
+        _update_latest_policy_and_risk(state, all_dates)
     else:
-
-        risk = state.get("risk", "Low")
-
-        query = (
-            f"What is the company policy for {product} "
-            f"when inventory risk is {risk}?"
-        )
-
-        state["policy"] = search_policy(query)
+        state["policy"] = _query_policy(product, state.get("risk", "Low"))
 
     return state
+
+
+def _get_product_name(state: State) -> str:
+    inventory = state.get("inventory", {})
+    return inventory.get("product_name", "Unknown Product")
+
+
+def _query_policy(product: str, risk: str) -> str:
+    query = f"What is the company policy for {product} when inventory risk is {risk}?"
+    return search_policy(query)
+
+
+def _annotate_history_with_policy(history: list[dict], product: str) -> None:
+    for record in history:
+        risk = record.get("risk", "Low")
+        record["policy"] = _query_policy(product, risk)
+
+
+def _update_latest_policy_and_risk(state: State, history: list[dict]) -> None:
+    latest_record = history[-1]
+    state["policy"] = latest_record.get("policy", "N/A")
+    state["risk"] = latest_record.get("risk", "Low")
