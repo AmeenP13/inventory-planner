@@ -519,9 +519,16 @@ def trigger_replenish(request: Optional[ReplenishRequest] = None):
         # Determine if we need fallback
         error_msg = res.get("error") if isinstance(res, dict) else None
         if error_msg or not res or "recommendation" not in res:
-            # Fallback dynamic logic
-            reason = f"Replenishment triggered by critical stock level ({current_stock} units left). Reorder point is {reorder_point:.1f} units. Lead time is {int(row['avg_lead_time_day'])} days. Order recommended immediately to ensure safety stock levels."
-            policy = f"Safety Stock Policy §4.2 rule triggered for {row['product_name']} under stock risk state."
+            # Fallback dynamic logic using real RAG policy
+            policy = res.get("policy") if isinstance(res, dict) else None
+            if not policy or policy == "No policy found." or policy == "N/A":
+                try:
+                    from src.services.rag_policy.search import search_policy
+                    policy = search_policy(f"What is the company policy for {row['product_name']} when risk is High?")
+                except Exception:
+                    policy = f"Safety Stock Policy §4.2 rule triggered for {row['product_name']} under stock risk state."
+            
+            reason = f"Replenishment triggered by critical stock level ({current_stock} units left). Reorder point is {reorder_point:.1f} units. Lead time is {int(row['avg_lead_time_day'])} days. Policy Applied: {policy}"
         else:
             inventory = res.get("inventory", {})
             policy = res.get("policy", "N/A")
