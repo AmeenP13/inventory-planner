@@ -1,10 +1,13 @@
 from datetime import datetime, timedelta
-
+import sqlite3
 from src.services.agentic_ai.state import State
 from src.backend.database import get_connection
 
 
 def inventory_agent(state: State):
+
+    if state.get("error"):
+        return state
 
     last_msg = state["message"][-1]
 
@@ -13,36 +16,41 @@ def inventory_agent(state: State):
     else:
         product_name = str(last_msg).strip().lower()
 
-    conn = get_connection()
-    cursor = conn.cursor()
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        SELECT
-            i.date,
-            p.product_name,
-            i.current_stock,
-            COALESCE(s.quantity_sold,0) AS quantity_sold,
-            p.supplier_id,
-            p.avg_lead_time_day,
-            p.cost_price,
-            p.base_price,
-            COALESCE(s.customer_rating,0.0) AS customer_rating,
-            i.expiry_date
-        FROM inventory_daily i
-        JOIN products p
-            ON i.product_id = p.product_id
-        LEFT JOIN sales s
-            ON i.product_id = s.product_id
-            AND i.date = s.date
-        WHERE LOWER(TRIM(p.product_name)) = ?
-        ORDER BY i.date
-        """,
-        (product_name,),
-    )
+        cursor.execute(
+            """
+            SELECT
+                i.date,
+                p.product_name,
+                i.current_stock,
+                COALESCE(s.quantity_sold,0) AS quantity_sold,
+                p.supplier_id,
+                p.avg_lead_time_day,
+                p.cost_price,
+                p.base_price,
+                COALESCE(s.customer_rating,0.0) AS customer_rating,
+                i.expiry_date
+            FROM inventory_daily i
+            JOIN products p
+                ON i.product_id = p.product_id
+            LEFT JOIN sales s
+                ON i.product_id = s.product_id
+                AND i.date = s.date
+            WHERE LOWER(TRIM(p.product_name)) = ?
+            ORDER BY i.date
+            """,
+            (product_name,),
+        )
 
-    rows = cursor.fetchall()
-    conn.close()
+        rows = cursor.fetchall()
+        conn.close()
+
+    except sqlite3.Error as e:
+        state["error"] = f"Database Error: {e}"
+        return state
 
     if not rows:
         state["error"] = f"Product '{product_name}' not found."
@@ -51,7 +59,6 @@ def inventory_agent(state: State):
     inventory_history = []
 
     for row in rows:
-
         inventory_history.append(
             {
                 "date": row["date"],
@@ -70,7 +77,6 @@ def inventory_agent(state: State):
     state["all_dates_inventory"] = inventory_history
 
     latest = inventory_history[-1]
-
     state["inventory"] = latest
 
     if isinstance(latest["date"], str):
@@ -80,7 +86,7 @@ def inventory_agent(state: State):
 
     predicted_stock = max(
         0,
-        latest["current_stock"] - latest["quantity_sold"],
+        latest["current_stock"] - latest["quantity_sold"]
     )
 
     state["next_day_inventory"] = {

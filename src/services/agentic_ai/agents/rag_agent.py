@@ -10,33 +10,29 @@ def rag_agent(state: State):
     inventory = state.get("inventory", {})
     product = inventory.get("product_name", "Unknown Product")
 
-    all_dates = state.get("all_dates_inventory", [])
+    risk = state.get("risk", "Low")
 
+    query = (
+        f"What is the company policy for {product} "
+        f"when inventory risk is {risk}?"
+    )
 
-    if all_dates:
-        # Retrieve policy exactly once for the latest record
-        latest = all_dates[-1]
-        risk = latest.get("risk", "Low")
-
-        query = (
-            f"What is the company policy for {product} "
-            f"when inventory risk is {risk}?"
-        )
-
+    try:
         policy = search_policy(query)
-        latest["policy"] = policy
+
         state["policy"] = policy
-        state["risk"] = risk
 
-    else:
+        inventory["policy"] = policy
 
-        risk = state.get("risk", "Low")
+        history = state.get("all_dates_inventory", [])
+        if history:
+            history[-1]["policy"] = policy
 
-        query = (
-            f"What is the company policy for {product} "
-            f"when inventory risk is {risk}?"
-        )
+        next_day = state.get("next_day_inventory")
+        if isinstance(next_day, dict):
+            next_day["policy"] = policy
 
-        state["policy"] = search_policy(query)
+    except Exception as e:
+        state["error"] = f"RAG Error: {e}"
 
     return state
