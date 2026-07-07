@@ -2,21 +2,14 @@ import os
 from pathlib import Path
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
+import shutil
 
 POLICY_FOLDER = Path(__file__).resolve().parent / "policies"
-CHROMA_DIR = Path(__file__).resolve().parent / "chroma_db"
-EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+CHROMA_DIR = Path(__file__).resolve().parent / "chroma_db_genai"
 CHUNK_SIZE = 300
 CHUNK_OVERLAP = 50
-
-
-def _ensure_hf_token() -> None:
-    if not os.environ.get("HF_TOKEN"):
-        print(
-            "Warning: set HF_TOKEN in your environment to avoid unauthenticated HF Hub requests."
-        )
 
 
 def _load_policy_documents(policy_path: Path) -> list[str]:
@@ -36,13 +29,21 @@ def _load_policy_documents(policy_path: Path) -> list[str]:
     return chunks
 
 
-def _create_embedding_model() -> HuggingFaceEmbeddings:
-    return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+def _create_embedding_model() -> GoogleGenerativeAIEmbeddings:
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "dummy"
+    return GoogleGenerativeAIEmbeddings(
+        model="models/embedding-001",
+        google_api_key=api_key
+    )
 
 
 def _create_vector_db(
         chunks: list[str],
-        embedding_model: HuggingFaceEmbeddings) -> Chroma:
+        embedding_model: GoogleGenerativeAIEmbeddings) -> Chroma:
+    if CHROMA_DIR.exists():
+        print(f"Removing old vector index directory at {CHROMA_DIR}")
+        shutil.rmtree(CHROMA_DIR)
+
     return Chroma.from_texts(
         texts=chunks,
         embedding=embedding_model,
@@ -51,14 +52,12 @@ def _create_vector_db(
 
 
 def main() -> None:
-    _ensure_hf_token()
-
     policy_chunks = _load_policy_documents(POLICY_FOLDER)
     if not policy_chunks:
         print("No policy documents found.")
         return
 
-    print("\nLoading embedding model...")
+    print("\nLoading Google GenAI embedding model...")
     embedding_model = _create_embedding_model()
     print("Embedding model loaded successfully.")
 

@@ -1,65 +1,36 @@
+import os
 from pathlib import Path
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_chroma import Chroma
+import threading
+
+CHROMA_DIR = Path(__file__).resolve().parent / "chroma_db_genai"
+
+_VECTOR_DB = None
+_db_lock = threading.Lock()
 
 
-class Document:
-    def __init__(self, page_content, metadata=None):
-        self.page_content = page_content
-        self.metadata = metadata or {}
+def _ensure_vector_store() -> None:
+    if not CHROMA_DIR.exists() or not any(CHROMA_DIR.iterdir()):
+        from .ingest import main as build_policy_db
+
+        print("Chroma vector store not found. Building from policy documents...")
+        build_policy_db()
 
 
-class LightweightPolicySearch:
-    def __init__(self):
-        self.policies_dir = Path(__file__).resolve().parent / "policies"
-        self.documents = []
-        self.filenames = []
-
-        if self.policies_dir.exists():
-            for file in self.policies_dir.glob("*.txt"):
-                try:
-                    with open(file, "r", encoding="utf-8") as f:
-                        content = f.read().strip()
-                        if content:
-                            self.documents.append(content)
-                            self.filenames.append(file.name)
-                except Exception:
-                    pass
-
-        if not self.documents:
-            # Fallback default policies if directory is empty
-            self.documents = [
-                "Safety Stock Policy\n\n1. The standard safety stock is 10 days of average sales...",
-                "Emergency Restock Policy\n\nTrigger immediate order if stock drops below 2 days...",
-            ]
-            self.filenames = ["safety_stock_policy.txt", "emergency_policy.txt"]
-
-        self.vectorizer = TfidfVectorizer(stop_words="english")
-        self.tfidf_matrix = self.vectorizer.fit_transform(self.documents)
-
-    def similarity_search(self, query: str, k: int = 1):
-        query_vec = self.vectorizer.transform([query])
-        similarities = cosine_similarity(query_vec, self.tfidf_matrix).flatten()
-
-        # Get indices sorted by similarity score ascending
-        top_indices = similarities.argsort()[-k:][::-1]
-
-        results = []
-        for idx in top_indices:
-            results.append(
-                Document(
-                    self.documents[idx],
-                    {"source": self.filenames[idx]}
+def get_vector_db() -> Chroma:
+    global _VECTOR_DB
+    if _VECTOR_DB is None:
+        with _db_lock:
+            if _VECTOR_DB is None:
+                _ensure_vector_store()
+                api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "dummy"
+                embedding_model = GoogleGenerativeAIEmbeddings(
+                    model="models/embedding-001",
+                    google_api_key=api_key
                 )
-            )
-        return results
-
-
-_LIGHTWEIGHT_STORE = None
-
-
-def get_vector_db():
-    global _LIGHTWEIGHT_STORE
-    if _LIGHTWEIGHT_STORE is None:
-        _LIGHTWEIGHT_STORE = LightweightPolicySearch()
-    return _LIGHTWEIGHT_STORE
+                _VECTOR_DB = Chroma(
+                    persist_directory=str(CHROMA_DIR),
+                    embedding_function=embedding_model,
+                )
+    return _VECTOR_DB

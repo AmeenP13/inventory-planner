@@ -23,12 +23,15 @@ import threading
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Pre-loading lightweight vector database...")
+    print("Pre-loading Chroma vector database and HuggingFace embedding model...")
     try:
         from src.services.rag_policy.vector_db import get_vector_db
-        get_vector_db()
+        # Run in a background thread so the server finishes starting up
+        # immediately
+        t = threading.Thread(target=get_vector_db)
+        t.start()
     except Exception as e:
-        print(f"Error initializing vector database: {e}")
+        print(f"Error pre-loading vector database: {e}")
     yield
 
 app = FastAPI(title="Inventory Replenishment Agent API", lifespan=lifespan)
