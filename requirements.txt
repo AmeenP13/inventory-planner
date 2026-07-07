@@ -1,0 +1,29 @@
+# FastAPI Web Application & Server
+fastapi
+uvicorn
+
+# Streamlit Frontend UI
+streamlit
+altair
+pandas
+numpy
+matplotlib
+requests
+
+# OS level notifications (used by live monitor)
+plyer
+
+# LangChain, LangGraph and LLM Integration
+langchain
+langchain-community
+langchain-text-splitters
+langgraph
+google-genai
+langchain-google-genai
+python-dotenv
+
+# Vector DB & Embeddings
+chromadb
+sentence-transformers
+langchain-chroma
+langchain-huggingface
