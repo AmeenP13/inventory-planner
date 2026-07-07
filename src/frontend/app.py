@@ -1677,38 +1677,29 @@ elif selected_page == "AI_Agent":
         status_icon = "●"
 
         # Render Budget Card
-        st.markdown(f"""
-        <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 16px; padding: 24px; box-shadow: 0 4px 12px rgba(28,61,90,0.02); margin-bottom: 25px; display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 24px;">
-            <!-- Column 1: Budget Utilization Progress -->
-            <div style="border-right: 1px solid #E4EDF5; padding-right: 24px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="font-weight: 700; color: #1C3D5A; font-size: 15px;">Budget Utilization</span>
-                    <span style="font-weight: 700; color: #00A8C6; font-size: 15px;">{pct:.1f}%</span>
-                </div>
-                <div style="background-color: #EBF3FC; width: 100%; height: 10px; border-radius: 5px; overflow: hidden; margin-bottom: 12px;">
-                    <div style="background: linear-gradient(90deg, #00A8C6 0%, #3B82F6 100%); width: {pct}%; height: 100%; border-radius: 5px;"></div>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #5B7A9C;">
-                    <span>Spent: <strong>${proposed_cost:,.2f}</strong></span>
-                    <span>Limit: <strong>${budget_cap:,.2f}</strong></span>
-                </div>
-            </div>
-            
-            <!-- Column 2: Remaining Budget -->
-            <div style="border-right: 1px solid #E4EDF5; padding-right: 24px; display: flex; flex-direction: column; justify-content: center;">
-                <span style="font-size: 12px; color: #8CA0B8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Remaining Budget</span>
-                <span style="font-size: 24px; font-weight: 800; color: {remaining_color}; margin-top: 4px;">${remaining_budget:,.2f}</span>
-            </div>
-            
-            <!-- Column 3: Status Indicator -->
-            <div style="display: flex; flex-direction: column; justify-content: center; align-items: flex-start;">
-                <span style="font-size: 12px; color: #8CA0B8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Status Approval</span>
-                <span style="background-color: {status_bg}; color: {status_fg}; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-top: 6px; display: inline-flex; align-items: center; gap: 6px;">
-                    {status_icon} {status_text}
-                </span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        budget_html = (
+            f'<div style="background-color:#FFFFFF;border:1px solid #E4EDF5;border-radius:16px;padding:24px;'
+            f'box-shadow:0 4px 12px rgba(28,61,90,0.02);margin-bottom:25px;'
+            f'display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:24px;">'
+            f'<div style="border-right:1px solid #E4EDF5;padding-right:24px;">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+            f'<span style="font-weight:700;color:#1C3D5A;font-size:15px;">Budget Utilization</span>'
+            f'<span style="font-weight:700;color:#00A8C6;font-size:15px;">{pct:.1f}%</span></div>'
+            f'<div style="background-color:#EBF3FC;width:100%;height:10px;border-radius:5px;overflow:hidden;margin-bottom:12px;">'
+            f'<div style="background:linear-gradient(90deg,#00A8C6 0%,#3B82F6 100%);width:{pct:.1f}%;height:100%;border-radius:5px;"></div></div>'
+            f'<div style="display:flex;justify-content:space-between;font-size:12px;color:#5B7A9C;">'
+            f'<span>Spent: <strong>${proposed_cost:,.2f}</strong></span>'
+            f'<span>Limit: <strong>${budget_cap:,.2f}</strong></span></div></div>'
+            f'<div style="border-right:1px solid #E4EDF5;padding-right:24px;display:flex;flex-direction:column;justify-content:center;">'
+            f'<span style="font-size:12px;color:#8CA0B8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Remaining Budget</span>'
+            f'<span style="font-size:24px;font-weight:800;color:{remaining_color};margin-top:4px;">${remaining_budget:,.2f}</span></div>'
+            f'<div style="display:flex;flex-direction:column;justify-content:center;align-items:flex-start;">'
+            f'<span style="font-size:12px;color:#8CA0B8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Status Approval</span>'
+            f'<span style="background-color:{status_bg};color:{status_fg};padding:6px 14px;border-radius:20px;'
+            f'font-size:12px;font-weight:700;margin-top:6px;display:inline-flex;align-items:center;gap:6px;">'
+            f'{status_icon} {status_text}</span></div></div>'
+        )
+        st.markdown(budget_html, unsafe_allow_html=True)
 
         # ── Compute pending items (not yet actioned) ──────────────────────────
         pending_recs = [
@@ -1753,26 +1744,21 @@ elif selected_page == "AI_Agent":
         # ── All orders processed → show success banner ────────────────────────
         if not pending_recs:
             if total_actioned > 0:
-                st.markdown(f"""
-                <div style="background: linear-gradient(135deg, #D1FAE5 0%, #ECFDF5 100%);
-                             border: 1px solid #10B98130; border-radius: 16px; padding: 40px 32px;
-                             text-align: center; margin: 20px 0;">
-                    <div style="font-size: 52px; margin-bottom: 16px;">🎉</div>
-                    <div style="font-weight: 700; font-size: 22px; color: #065F46; margin-bottom: 8px;">
-                        All Orders Processed!
-                    </div>
-                    <div style="font-size: 14px; color: #047857; margin-bottom: 20px;">
-                        <strong>{approved_count}</strong> order{'s' if approved_count != 1 else ''} approved
-                        {'· <strong>' + str(rejected_count) + '</strong> rejected' if rejected_count else ''}
-                        — inventory replenishment has been dispatched to suppliers.
-                    </div>
-                    <div style="display: inline-flex; align-items: center; gap: 10px;
-                                background: #10B981; color: white; padding: 10px 24px;
-                                border-radius: 8px; font-weight: 600; font-size: 13px;">
-                        ✅ Replenishment Orders Submitted
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                rej_text = f' · <strong>{rejected_count}</strong> rejected' if rejected_count else ''
+                order_word = 'orders' if approved_count != 1 else 'order'
+                success_html = (
+                    '<div style="background:linear-gradient(135deg,#D1FAE5 0%,#ECFDF5 100%);'
+                    'border:1px solid #10B98130;border-radius:16px;padding:40px 32px;text-align:center;margin:20px 0;">'
+                    '<div style="font-size:52px;margin-bottom:16px;">🎉</div>'
+                    f'<div style="font-weight:700;font-size:22px;color:#065F46;margin-bottom:8px;">All Orders Processed!</div>'
+                    f'<div style="font-size:14px;color:#047857;margin-bottom:20px;">'
+                    f'<strong>{approved_count}</strong> {order_word} approved{rej_text}'
+                    f' — inventory replenishment has been dispatched to suppliers.</div>'
+                    '<div style="display:inline-flex;align-items:center;gap:10px;background:#10B981;'
+                    'color:white;padding:10px 24px;border-radius:8px;font-weight:600;font-size:13px;">'
+                    '✅ Replenishment Orders Submitted</div></div>'
+                )
+                st.markdown(success_html, unsafe_allow_html=True)
 
                 # Option to reset and run again
                 col_reset = st.columns([2, 1, 2])[1]
