@@ -462,6 +462,11 @@ def get_suppliers_report():
     return suppliers_list
 
 
+@app.get("/api/proposal")
+def get_proposal():
+    return trigger_replenish()
+
+
 @app.post("/api/replenish")
 def trigger_replenish(request: Optional[ReplenishRequest] = None):
     global _PROPOSAL_CACHE

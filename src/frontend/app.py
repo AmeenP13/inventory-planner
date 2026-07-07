@@ -43,7 +43,7 @@ demand_data = get_api_data("/api/demand_report", "demand_data.json")
 suppliers_data = get_api_data("/api/suppliers_report", "suppliers_data.json")
 
 if "agent_proposal" not in st.session_state:
-    st.session_state.agent_proposal = load_mock_json("agent_proposal.json")
+    st.session_state.agent_proposal = get_api_data("/api/proposal", "agent_proposal.json")
 
 # Initialize session state for database persistence (so UI buttons update state)
 if "inventory_db" not in st.session_state and inventory_data:
