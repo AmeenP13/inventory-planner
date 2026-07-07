@@ -1,5 +1,7 @@
 from langgraph.graph.message import add_messages
 from typing import TypedDict, Annotated, List, Dict, Any, Optional
+
+
 class State(TypedDict):
     message: Annotated[list, add_messages]
     inventory: Dict[str, Any]

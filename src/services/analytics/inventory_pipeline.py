@@ -85,17 +85,28 @@ def banner(step_number: int, title: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Full inventory pipeline: report, dead stock, suppliers, and budget plan in one run"
-    )
+        description="Full inventory pipeline: report, dead stock, suppliers, and budget plan in one run")
     parser.add_argument("--csv", required=True, help="Path to input CSV file")
-    parser.add_argument("--budget", type=float, required=True,
-                         help="Available procurement budget for the reorder plan")
-    parser.add_argument("--service-level", type=float, default=0.95,
-                         help="Target service level for safety stock (e.g. 0.90, 0.95, 0.99)")
-    parser.add_argument("--dead-stock-days", type=int, default=DEAD_STOCK_WINDOW_DAYS,
-                         help=f"Days with zero sales to flag as dead stock (default: {DEAD_STOCK_WINDOW_DAYS})")
-    parser.add_argument("--top-n", type=int, default=25,
-                         help="Number of most at-risk products to show in the chart")
+    parser.add_argument(
+        "--budget",
+        type=float,
+        required=True,
+        help="Available procurement budget for the reorder plan")
+    parser.add_argument(
+        "--service-level",
+        type=float,
+        default=0.95,
+        help="Target service level for safety stock (e.g. 0.90, 0.95, 0.99)")
+    parser.add_argument(
+        "--dead-stock-days",
+        type=int,
+        default=DEAD_STOCK_WINDOW_DAYS,
+        help=f"Days with zero sales to flag as dead stock (default: {DEAD_STOCK_WINDOW_DAYS})")
+    parser.add_argument(
+        "--top-n",
+        type=int,
+        default=25,
+        help="Number of most at-risk products to show in the chart")
     parser.add_argument("--report-out", default="low_stock_alert_report.csv")
     parser.add_argument("--chart-out", default="stock_status_chart.png")
     parser.add_argument("--dead-stock-out", default="dead_stock_report.csv")
@@ -108,7 +119,10 @@ def main():
     # ------------------------------------------------------------------
     print(f"Loading data from: {args.csv}")
     df = load_data(args.csv)
-    print(f"Loaded {len(df)} rows across {df['product_id'].nunique()} products.")
+    print(
+        f"Loaded {
+            len(df)} rows across {
+            df['product_id'].nunique()} products.")
 
     # ------------------------------------------------------------------
     banner(2, "BASE REPORT — AVG DAILY SALES, REORDER POINT, STOCK STATUS")
@@ -124,11 +138,13 @@ def main():
     # ------------------------------------------------------------------
     banner(3, f"DEAD STOCK DETECTION ({args.dead_stock_days}-DAY WINDOW)")
     # ------------------------------------------------------------------
-    dead_stock = detect_dead_stock(df, report, window_days=args.dead_stock_days)
+    dead_stock = detect_dead_stock(
+        df, report, window_days=args.dead_stock_days)
     n_dead = dead_stock["is_dead_stock"].sum()
     print(f"{n_dead} product(s) flagged as dead stock.")
     if n_dead > 0:
-        exposure = dead_stock.loc[dead_stock["is_dead_stock"], "holding_cost_exposure"].sum()
+        exposure = dead_stock.loc[dead_stock["is_dead_stock"],
+                                  "holding_cost_exposure"].sum()
         print(f"Total holding cost tied up in dead stock: {exposure:,.2f}")
         print(dead_stock[dead_stock["is_dead_stock"]].head(10)[
             ["product_id", "product_name", "units_sold_last_90d", "holding_cost_exposure"]
@@ -143,14 +159,15 @@ def main():
     scorecard = build_supplier_scorecard(report)
     print(f"Scored {len(scorecard)} supplier(s) on lead time + cost:")
     print(scorecard[["rank", "supplier_id", "products_supplied",
-                      "avg_lead_time_day", "avg_cost_price", "supplier_score"]]
+                     "avg_lead_time_day", "avg_cost_price", "supplier_score"]]
           .head(10).to_string(index=False))
 
     supplier_path = safe_to_csv(scorecard, args.supplier_out)
     print(f"\nSupplier scorecard saved: {supplier_path}")
 
     alt_flags = flag_supplier_alternatives(report, scorecard)
-    n_better_available = alt_flags["better_supplier_available"].sum() if not alt_flags.empty else 0
+    n_better_available = alt_flags["better_supplier_available"].sum(
+    ) if not alt_flags.empty else 0
     print(f"{n_better_available} at-risk product(s) have a better-scoring supplier available "
           f"elsewhere (flagged for manual review, not auto-swapped).")
 

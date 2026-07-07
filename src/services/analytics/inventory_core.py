@@ -83,7 +83,8 @@ DEAD_STOCK_WINDOW_DAYS = 90
 # INPUT NORMALIZATION
 # ---------------------------------------------------------------------------
 
-def prepare_dataframe(data: Union[pd.DataFrame, List[Dict[str, Any]], List[tuple]]) -> pd.DataFrame:
+def prepare_dataframe(
+        data: Union[pd.DataFrame, List[Dict[str, Any]], List[tuple]]) -> pd.DataFrame:
     """
     Normalize input into a clean, validated DataFrame ready for the rest of
     this module. Accepts:
@@ -118,8 +119,10 @@ def prepare_dataframe(data: Union[pd.DataFrame, List[Dict[str, Any]], List[tuple
 
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df["expiry_date"] = pd.to_datetime(df["expiry_date"], errors="coerce")
-    df["quantity_sold"] = pd.to_numeric(df["quantity_sold"], errors="coerce").fillna(0)
-    df["current_stock"] = pd.to_numeric(df["current_stock"], errors="coerce").fillna(0)
+    df["quantity_sold"] = pd.to_numeric(
+        df["quantity_sold"], errors="coerce").fillna(0)
+    df["current_stock"] = pd.to_numeric(
+        df["current_stock"], errors="coerce").fillna(0)
 
     df = df.dropna(subset=["product_id", "date"])
 
@@ -145,7 +148,8 @@ def to_json_records(df: pd.DataFrame) -> List[Dict[str, Any]]:
 
     for col in out.columns:
         if pd.api.types.is_datetime64_any_dtype(out[col]):
-            out[col] = out[col].dt.strftime("%Y-%m-%d").where(out[col].notna(), None)
+            out[col] = out[col].dt.strftime(
+                "%Y-%m-%d").where(out[col].notna(), None)
 
     out = out.replace([np.inf, -np.inf], None)
     out = out.where(pd.notna(out), None)
@@ -163,7 +167,9 @@ def get_zscore(service_level: float) -> float:
     return Z_SCORE_TABLE[closest]
 
 
-def build_report(df: pd.DataFrame, service_level: float = 0.95) -> pd.DataFrame:
+def build_report(
+        df: pd.DataFrame,
+        service_level: float = 0.95) -> pd.DataFrame:
     """
     Aggregate historical sales per product and compute avg_daily_sales,
     days_of_stock_left, safety_stock, reorder_point (ROP), and stock_status
@@ -172,14 +178,18 @@ def build_report(df: pd.DataFrame, service_level: float = 0.95) -> pd.DataFrame:
     z = get_zscore(service_level)
 
     latest = (
-        df.sort_values("date")
-        .groupby("product_id")
-        .tail(1)[[
-            "product_id", "product_name", "current_stock", "cost_price",
-            "base_price", "customer_rating", "supplier_id", "avg_lead_time_day",
-        ]]
-        .reset_index(drop=True)
-    )
+        df.sort_values("date") .groupby("product_id") .tail(1)[
+            [
+                "product_id",
+                "product_name",
+                "current_stock",
+                "cost_price",
+                "base_price",
+                "customer_rating",
+                "supplier_id",
+                "avg_lead_time_day",
+            ]] .reset_index(
+            drop=True))
 
     sales_stats = (
         df.groupby("product_id")["quantity_sold"]
@@ -210,8 +220,9 @@ def build_report(df: pd.DataFrame, service_level: float = 0.95) -> pd.DataFrame:
     ).round(1)
 
     report["reorder_point"] = (
-        report["avg_daily_sales"] * report["avg_lead_time_day"] + report["safety_stock"]
-    ).round(1)
+        report["avg_daily_sales"] *
+        report["avg_lead_time_day"] +
+        report["safety_stock"]).round(1)
 
     def classify(row):
         if row["current_stock"] <= 0:
@@ -223,7 +234,8 @@ def build_report(df: pd.DataFrame, service_level: float = 0.95) -> pd.DataFrame:
     report["stock_status"] = report.apply(classify, axis=1)
 
     if "nearest_expiry_date" in report.columns:
-        report["days_to_expiry"] = (report["nearest_expiry_date"] - today).dt.days
+        report["days_to_expiry"] = (
+            report["nearest_expiry_date"] - today).dt.days
 
     cols_order = [
         "product_id", "product_name", "supplier_id", "current_stock",
@@ -242,8 +254,10 @@ def build_report(df: pd.DataFrame, service_level: float = 0.95) -> pd.DataFrame:
 # DEAD STOCK DETECTION
 # ---------------------------------------------------------------------------
 
-def detect_dead_stock(df: pd.DataFrame, report: pd.DataFrame,
-                       window_days: int = DEAD_STOCK_WINDOW_DAYS) -> pd.DataFrame:
+def detect_dead_stock(
+        df: pd.DataFrame,
+        report: pd.DataFrame,
+        window_days: int = DEAD_STOCK_WINDOW_DAYS) -> pd.DataFrame:
     """Flag products with zero quantity_sold in the last `window_days` calendar days."""
     today = pd.Timestamp.today().normalize()
     window_start = today - pd.Timedelta(days=window_days)
@@ -255,8 +269,10 @@ def detect_dead_stock(df: pd.DataFrame, report: pd.DataFrame,
     )
 
     earliest_date = df.groupby("product_id")["date"].min().reset_index()
-    earliest_date = earliest_date.rename(columns={"date": "earliest_record_date"})
-    earliest_date["days_of_history"] = (today - earliest_date["earliest_record_date"]).dt.days
+    earliest_date = earliest_date.rename(
+        columns={"date": "earliest_record_date"})
+    earliest_date["days_of_history"] = (
+        today - earliest_date["earliest_record_date"]).dt.days
 
     dead = report.merge(sales_in_window, on="product_id", how="left")
     dead = dead.merge(earliest_date, on="product_id", how="left")
@@ -268,7 +284,9 @@ def detect_dead_stock(df: pd.DataFrame, report: pd.DataFrame,
         dead["is_dead_stock"], (dead["base_price"] * 0.70).round(2), np.nan,
     )
     dead["holding_cost_exposure"] = np.where(
-        dead["is_dead_stock"], (dead["current_stock"] * dead["cost_price"]).round(2), 0.0,
+        dead["is_dead_stock"],
+        (dead["current_stock"] * dead["cost_price"]).round(2),
+        0.0,
     )
 
     cols = [
@@ -278,7 +296,8 @@ def detect_dead_stock(df: pd.DataFrame, report: pd.DataFrame,
         "holding_cost_exposure",
     ]
     cols = [c for c in cols if c in dead.columns]
-    return dead[cols].sort_values(["is_dead_stock", "holding_cost_exposure"], ascending=[False, False])
+    return dead[cols].sort_values(
+        ["is_dead_stock", "holding_cost_exposure"], ascending=[False, False])
 
 
 # ---------------------------------------------------------------------------
@@ -303,20 +322,28 @@ def build_supplier_scorecard(report: pd.DataFrame) -> pd.DataFrame:
             return pd.Series(100.0, index=series.index)
         return 100 * (hi - series) / (hi - lo)
 
-    scorecard["lead_time_score"] = normalize_inverse(scorecard["avg_lead_time_day"]).round(1)
-    scorecard["cost_score"] = normalize_inverse(scorecard["avg_cost_price"]).round(1)
+    scorecard["lead_time_score"] = normalize_inverse(
+        scorecard["avg_lead_time_day"]).round(1)
+    scorecard["cost_score"] = normalize_inverse(
+        scorecard["avg_cost_price"]).round(1)
     scorecard["supplier_score"] = (
         0.5 * scorecard["lead_time_score"] + 0.5 * scorecard["cost_score"]
     ).round(1)
 
-    scorecard = scorecard.sort_values("supplier_score", ascending=False).reset_index(drop=True)
+    scorecard = scorecard.sort_values(
+        "supplier_score",
+        ascending=False).reset_index(
+        drop=True)
     scorecard["rank"] = scorecard.index + 1
     return scorecard
 
 
-def flag_supplier_alternatives(report: pd.DataFrame, scorecard: pd.DataFrame) -> pd.DataFrame:
+def flag_supplier_alternatives(
+        report: pd.DataFrame,
+        scorecard: pd.DataFrame) -> pd.DataFrame:
     """For each at-risk product, flag whether a better-scoring supplier exists elsewhere."""
-    at_risk = report[report["stock_status"].isin(["LOW_STOCK", "OUT_OF_STOCK"])].copy()
+    at_risk = report[report["stock_status"].isin(
+        ["LOW_STOCK", "OUT_OF_STOCK"])].copy()
     if at_risk.empty:
         return at_risk.assign(
             current_supplier_score=pd.Series(dtype=float),
@@ -329,7 +356,8 @@ def flag_supplier_alternatives(report: pd.DataFrame, scorecard: pd.DataFrame) ->
     best_supplier_id = scorecard.iloc[0]["supplier_id"]
     best_supplier_score = scorecard.iloc[0]["supplier_score"]
 
-    at_risk["current_supplier_score"] = at_risk["supplier_id"].map(score_lookup)
+    at_risk["current_supplier_score"] = at_risk["supplier_id"].map(
+        score_lookup)
     at_risk["best_alt_supplier"] = best_supplier_id
     at_risk["best_alt_supplier_score"] = best_supplier_score
     at_risk["better_supplier_available"] = (
@@ -337,11 +365,18 @@ def flag_supplier_alternatives(report: pd.DataFrame, scorecard: pd.DataFrame) ->
     ) & (at_risk["supplier_id"] != best_supplier_id)
 
     cols = [
-        "product_id", "product_name", "supplier_id", "current_supplier_score",
-        "best_alt_supplier", "best_alt_supplier_score", "better_supplier_available",
-        "stock_status", "days_of_stock_left",
+        "product_id",
+        "product_name",
+        "supplier_id",
+        "current_supplier_score",
+        "best_alt_supplier",
+        "best_alt_supplier_score",
+        "better_supplier_available",
+        "stock_status",
+        "days_of_stock_left",
     ]
-    return at_risk[cols].sort_values("better_supplier_available", ascending=False)
+    return at_risk[cols].sort_values(
+        "better_supplier_available", ascending=False)
 
 
 # ---------------------------------------------------------------------------
@@ -358,7 +393,8 @@ def build_reorder_plan(report: pd.DataFrame, budget: float) -> pd.DataFrame:
     if budget < 0:
         raise ValueError(f"budget must be non-negative, got {budget}")
 
-    candidates = report[report["stock_status"].isin(["LOW_STOCK", "OUT_OF_STOCK"])].copy()
+    candidates = report[report["stock_status"].isin(
+        ["LOW_STOCK", "OUT_OF_STOCK"])].copy()
     if candidates.empty:
         return candidates.assign(
             order_qty=pd.Series(dtype=float),
@@ -368,11 +404,17 @@ def build_reorder_plan(report: pd.DataFrame, budget: float) -> pd.DataFrame:
         )
 
     candidates["order_qty"] = np.ceil(
-        (candidates["reorder_point"] - candidates["current_stock"]).clip(lower=1)
-    )
-    candidates["order_cost"] = (candidates["order_qty"] * candidates["cost_price"]).round(2)
+        (candidates["reorder_point"] -
+         candidates["current_stock"]).clip(
+            lower=1))
+    candidates["order_cost"] = (
+        candidates["order_qty"] *
+        candidates["cost_price"]).round(2)
 
-    candidates = candidates.sort_values("days_of_stock_left", ascending=True).reset_index(drop=True)
+    candidates = candidates.sort_values(
+        "days_of_stock_left",
+        ascending=True).reset_index(
+        drop=True)
 
     cumulative = 0.0
     statuses = []
@@ -389,9 +431,18 @@ def build_reorder_plan(report: pd.DataFrame, budget: float) -> pd.DataFrame:
     candidates["cumulative_spend"] = cumulative_spend_list
 
     cols = [
-        "product_id", "product_name", "supplier_id", "current_stock",
-        "reorder_point", "days_of_stock_left", "stock_status",
-        "order_qty", "cost_price", "order_cost", "order_status", "cumulative_spend",
+        "product_id",
+        "product_name",
+        "supplier_id",
+        "current_stock",
+        "reorder_point",
+        "days_of_stock_left",
+        "stock_status",
+        "order_qty",
+        "cost_price",
+        "order_cost",
+        "order_status",
+        "cumulative_spend",
     ]
     cols = [c for c in cols if c in candidates.columns]
     return candidates[cols]

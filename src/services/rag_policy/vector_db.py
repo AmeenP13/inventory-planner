@@ -24,10 +24,10 @@ def get_vector_db() -> Chroma:
         with _db_lock:
             if _VECTOR_DB is None:
                 _ensure_vector_store()
-                embedding_model = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+                embedding_model = HuggingFaceEmbeddings(
+                    model_name=EMBEDDING_MODEL_NAME)
                 _VECTOR_DB = Chroma(
                     persist_directory=str(CHROMA_DIR),
                     embedding_function=embedding_model,
                 )
     return _VECTOR_DB
-

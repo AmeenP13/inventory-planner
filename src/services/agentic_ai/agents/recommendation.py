@@ -20,7 +20,8 @@ def recommendation_agent(state: State):
     est_demand = float(est_demand) if est_demand is not None else 0.0
 
     dates_summary = _format_history_summary(all_dates)
-    next_day_str = _format_next_day_details(next_inventory, avg_sales, est_demand)
+    next_day_str = _format_next_day_details(
+        next_inventory, avg_sales, est_demand)
 
     prompt = _build_prompt(
         inventory=inventory,
@@ -38,7 +39,8 @@ def recommendation_agent(state: State):
         state["recommendation"] = recommendation
     except Exception as e:
         state["error"] = f"LLM Error: {str(e)}"
-        state["recommendation"] = f"Error: Failed to generate recommendation using LLM. Details: {str(e)}"
+        state["recommendation"] = f"Error: Failed to generate recommendation using LLM. Details: {
+            str(e)}"
 
     return state
 
@@ -50,26 +52,38 @@ def _format_history_summary(history: list[dict]) -> str:
     lines = []
     for item in history:
         avg_daily_sales = item.get("average_daily_sales")
-        avg_daily_sales = float(avg_daily_sales) if avg_daily_sales is not None else 0.0
+        avg_daily_sales = float(
+            avg_daily_sales) if avg_daily_sales is not None else 0.0
         estimated_demand = item.get("estimated_demand")
-        estimated_demand = float(estimated_demand) if estimated_demand is not None else 0.0
+        estimated_demand = float(
+            estimated_demand) if estimated_demand is not None else 0.0
 
         lines.append(
             "Date: {date} | Stock: {current_stock} | Sold: {quantity_sold} | "
             "Avg Daily Sales: {avg_daily_sales:.2f} | Estimated Demand: {estimated_demand:.2f} | "
             "Risk: {risk}".format(
-                date=item.get("date", "N/A"),
-                current_stock=item.get("current_stock", 0),
-                quantity_sold=item.get("quantity_sold", 0),
+                date=item.get(
+                    "date",
+                    "N/A"),
+                current_stock=item.get(
+                    "current_stock",
+                    0),
+                quantity_sold=item.get(
+                    "quantity_sold",
+                    0),
                 avg_daily_sales=avg_daily_sales,
                 estimated_demand=estimated_demand,
-                risk=item.get("risk", "N/A"),
-            )
-        )
+                risk=item.get(
+                    "risk",
+                    "N/A"),
+            ))
     return "\n".join(lines)
 
 
-def _format_next_day_details(next_inventory: dict, avg_sales: float, est_demand: float) -> str:
+def _format_next_day_details(
+        next_inventory: dict,
+        avg_sales: float,
+        est_demand: float) -> str:
     if not next_inventory:
         return "N/A"
 

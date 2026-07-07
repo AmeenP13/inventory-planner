@@ -8,7 +8,8 @@ import sqlite3
 from pathlib import Path
 
 # inventory.db sits in the root data/ folder
-DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "inventory.db"
+DB_PATH = Path(__file__).resolve().parent.parent.parent / \
+    "data" / "inventory.db"
 
 
 def get_connection():

@@ -54,8 +54,10 @@ DEAD_STOCK_WINDOW_DAYS = 90
 # 1. DEAD STOCK DETECTION
 # ---------------------------------------------------------------------------
 
-def detect_dead_stock(df: pd.DataFrame, report: pd.DataFrame,
-                       window_days: int = DEAD_STOCK_WINDOW_DAYS) -> pd.DataFrame:
+def detect_dead_stock(
+        df: pd.DataFrame,
+        report: pd.DataFrame,
+        window_days: int = DEAD_STOCK_WINDOW_DAYS) -> pd.DataFrame:
     """
     Flag products with zero quantity_sold in the last `window_days` calendar
     days from today. If a product has less than `window_days` of history
@@ -72,8 +74,10 @@ def detect_dead_stock(df: pd.DataFrame, report: pd.DataFrame,
     )
 
     earliest_date = df.groupby("product_id")["date"].min().reset_index()
-    earliest_date = earliest_date.rename(columns={"date": "earliest_record_date"})
-    earliest_date["days_of_history"] = (today - earliest_date["earliest_record_date"]).dt.days
+    earliest_date = earliest_date.rename(
+        columns={"date": "earliest_record_date"})
+    earliest_date["days_of_history"] = (
+        today - earliest_date["earliest_record_date"]).dt.days
 
     dead = report.merge(sales_in_window, on="product_id", how="left")
     dead = dead.merge(earliest_date, on="product_id", how="left")
@@ -102,7 +106,8 @@ def detect_dead_stock(df: pd.DataFrame, report: pd.DataFrame,
         "holding_cost_exposure",
     ]
     cols = [c for c in cols if c in dead.columns]
-    return dead[cols].sort_values(["is_dead_stock", "holding_cost_exposure"], ascending=[False, False])
+    return dead[cols].sort_values(
+        ["is_dead_stock", "holding_cost_exposure"], ascending=[False, False])
 
 
 # ---------------------------------------------------------------------------
@@ -135,24 +140,32 @@ def build_supplier_scorecard(report: pd.DataFrame) -> pd.DataFrame:
             return pd.Series(100.0, index=series.index)
         return 100 * (hi - series) / (hi - lo)
 
-    scorecard["lead_time_score"] = normalize_inverse(scorecard["avg_lead_time_day"]).round(1)
-    scorecard["cost_score"] = normalize_inverse(scorecard["avg_cost_price"]).round(1)
+    scorecard["lead_time_score"] = normalize_inverse(
+        scorecard["avg_lead_time_day"]).round(1)
+    scorecard["cost_score"] = normalize_inverse(
+        scorecard["avg_cost_price"]).round(1)
     scorecard["supplier_score"] = (
         0.5 * scorecard["lead_time_score"] + 0.5 * scorecard["cost_score"]
     ).round(1)
 
-    scorecard = scorecard.sort_values("supplier_score", ascending=False).reset_index(drop=True)
+    scorecard = scorecard.sort_values(
+        "supplier_score",
+        ascending=False).reset_index(
+        drop=True)
     scorecard["rank"] = scorecard.index + 1
     return scorecard
 
 
-def flag_supplier_alternatives(report: pd.DataFrame, scorecard: pd.DataFrame) -> pd.DataFrame:
+def flag_supplier_alternatives(
+        report: pd.DataFrame,
+        scorecard: pd.DataFrame) -> pd.DataFrame:
     """
     For each LOW_STOCK / OUT_OF_STOCK product, check whether a better-scoring
     supplier exists than the one currently assigned. This is a flag for
     manual review, not an automatic reassignment.
     """
-    at_risk = report[report["stock_status"].isin(["LOW_STOCK", "OUT_OF_STOCK"])].copy()
+    at_risk = report[report["stock_status"].isin(
+        ["LOW_STOCK", "OUT_OF_STOCK"])].copy()
     if at_risk.empty:
         return at_risk.assign(
             current_supplier_score=pd.Series(dtype=float),
@@ -165,7 +178,8 @@ def flag_supplier_alternatives(report: pd.DataFrame, scorecard: pd.DataFrame) ->
     best_supplier_id = scorecard.iloc[0]["supplier_id"]
     best_supplier_score = scorecard.iloc[0]["supplier_score"]
 
-    at_risk["current_supplier_score"] = at_risk["supplier_id"].map(score_lookup)
+    at_risk["current_supplier_score"] = at_risk["supplier_id"].map(
+        score_lookup)
     at_risk["best_alt_supplier"] = best_supplier_id
     at_risk["best_alt_supplier_score"] = best_supplier_score
     at_risk["better_supplier_available"] = (
@@ -173,11 +187,18 @@ def flag_supplier_alternatives(report: pd.DataFrame, scorecard: pd.DataFrame) ->
     ) & (at_risk["supplier_id"] != best_supplier_id)
 
     cols = [
-        "product_id", "product_name", "supplier_id", "current_supplier_score",
-        "best_alt_supplier", "best_alt_supplier_score", "better_supplier_available",
-        "stock_status", "days_of_stock_left",
+        "product_id",
+        "product_name",
+        "supplier_id",
+        "current_supplier_score",
+        "best_alt_supplier",
+        "best_alt_supplier_score",
+        "better_supplier_available",
+        "stock_status",
+        "days_of_stock_left",
     ]
-    return at_risk[cols].sort_values("better_supplier_available", ascending=False)
+    return at_risk[cols].sort_values(
+        "better_supplier_available", ascending=False)
 
 
 # ---------------------------------------------------------------------------
@@ -202,7 +223,8 @@ def build_reorder_plan(report: pd.DataFrame, budget: float) -> pd.DataFrame:
     urgent one is approved. Deferred high-urgency orders are still listed
     first in the output so they're not missed.
     """
-    candidates = report[report["stock_status"].isin(["LOW_STOCK", "OUT_OF_STOCK"])].copy()
+    candidates = report[report["stock_status"].isin(
+        ["LOW_STOCK", "OUT_OF_STOCK"])].copy()
     if candidates.empty:
         return candidates.assign(
             order_qty=pd.Series(dtype=float),
@@ -212,13 +234,19 @@ def build_reorder_plan(report: pd.DataFrame, budget: float) -> pd.DataFrame:
         )
 
     candidates["order_qty"] = np.ceil(
-        (candidates["reorder_point"] - candidates["current_stock"]).clip(lower=1)
-    )
-    candidates["order_cost"] = (candidates["order_qty"] * candidates["cost_price"]).round(2)
+        (candidates["reorder_point"] -
+         candidates["current_stock"]).clip(
+            lower=1))
+    candidates["order_cost"] = (
+        candidates["order_qty"] *
+        candidates["cost_price"]).round(2)
 
     # Urgency-first: lowest days_of_stock_left goes first. Infinite values
     # (no sales history) sort last since they're not urgent by this measure.
-    candidates = candidates.sort_values("days_of_stock_left", ascending=True).reset_index(drop=True)
+    candidates = candidates.sort_values(
+        "days_of_stock_left",
+        ascending=True).reset_index(
+        drop=True)
 
     cumulative = 0.0
     statuses = []
@@ -228,16 +256,26 @@ def build_reorder_plan(report: pd.DataFrame, budget: float) -> pd.DataFrame:
             cumulative += cost
             statuses.append("APPROVED")
         else:
-            statuses.append("DEFERRED")  # doesn't fit now; keep checking remaining (less urgent) orders
+            # doesn't fit now; keep checking remaining (less urgent) orders
+            statuses.append("DEFERRED")
         cumulative_spend_list.append(round(cumulative, 2))
 
     candidates["order_status"] = statuses
     candidates["cumulative_spend"] = cumulative_spend_list
 
     cols = [
-        "product_id", "product_name", "supplier_id", "current_stock",
-        "reorder_point", "days_of_stock_left", "stock_status",
-        "order_qty", "cost_price", "order_cost", "order_status", "cumulative_spend",
+        "product_id",
+        "product_name",
+        "supplier_id",
+        "current_stock",
+        "reorder_point",
+        "days_of_stock_left",
+        "stock_status",
+        "order_qty",
+        "cost_price",
+        "order_cost",
+        "order_status",
+        "cumulative_spend",
     ]
     cols = [c for c in cols if c in candidates.columns]
     return candidates[cols]
@@ -257,23 +295,33 @@ def print_budget_summary(plan: pd.DataFrame, budget: float) -> None:
     print("BUDGET-CONSTRAINED REORDER PLAN")
     print("=" * 60)
     print(f"Available budget       : {budget:,.2f}")
-    print(f"Approved orders        : {len(approved)}  (total cost: {total_approved_cost:,.2f})")
-    print(f"Deferred orders        : {len(deferred)}  (total cost if funded: {total_deferred_cost:,.2f})")
+    print(
+        f"Approved orders        : {
+            len(approved)}  (total cost: {
+            total_approved_cost:,.2f})")
+    print(
+        f"Deferred orders        : {
+            len(deferred)}  (total cost if funded: {
+            total_deferred_cost:,.2f})")
     print(f"Remaining budget       : {budget - total_approved_cost:,.2f}")
     print("=" * 60)
 
     if not deferred.empty:
         print(f"\n{len(deferred)} order(s) deferred due to budget limits "
               f"(most urgent deferred items shown):")
-        print(deferred.head(10)[
-            ["product_id", "product_name", "days_of_stock_left", "order_cost", "order_status"]
-        ].to_string(index=False))
+        print(deferred.head(10)[["product_id",
+                                 "product_name",
+                                 "days_of_stock_left",
+                                 "order_cost",
+                                 "order_status"]].to_string(index=False))
 
         # Flag cases where a deferred order is MORE urgent than an approved one,
-        # since "approved" and "most urgent" don't always align under first-fit allocation.
+        # since "approved" and "most urgent" don't always align under first-fit
+        # allocation.
         if not approved.empty:
             most_urgent_deferred = deferred["days_of_stock_left"].min()
-            less_urgent_approved = approved[approved["days_of_stock_left"] > most_urgent_deferred]
+            less_urgent_approved = approved[approved["days_of_stock_left"]
+                                            > most_urgent_deferred]
             if not less_urgent_approved.empty:
                 print(f"\n  NOTE: some deferred orders are MORE urgent (sooner stockout) than "
                       f"orders that WERE approved, because a smaller/cheaper order further down "
@@ -288,15 +336,23 @@ def print_budget_summary(plan: pd.DataFrame, budget: float) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Dead stock detection, supplier scorecard, and budget-constrained reorder planning"
-    )
+        description="Dead stock detection, supplier scorecard, and budget-constrained reorder planning")
     parser.add_argument("--csv", required=True, help="Path to input CSV file")
-    parser.add_argument("--service-level", type=float, default=0.95,
-                         help="Target service level for safety stock (used in base report)")
-    parser.add_argument("--budget", type=float, required=True,
-                         help="Available procurement budget for the reorder plan")
-    parser.add_argument("--dead-stock-days", type=int, default=DEAD_STOCK_WINDOW_DAYS,
-                         help=f"Days with zero sales to flag as dead stock (default: {DEAD_STOCK_WINDOW_DAYS})")
+    parser.add_argument(
+        "--service-level",
+        type=float,
+        default=0.95,
+        help="Target service level for safety stock (used in base report)")
+    parser.add_argument(
+        "--budget",
+        type=float,
+        required=True,
+        help="Available procurement budget for the reorder plan")
+    parser.add_argument(
+        "--dead-stock-days",
+        type=int,
+        default=DEAD_STOCK_WINDOW_DAYS,
+        help=f"Days with zero sales to flag as dead stock (default: {DEAD_STOCK_WINDOW_DAYS})")
     parser.add_argument("--dead-stock-out", default="dead_stock_report.csv")
     parser.add_argument("--supplier-out", default="supplier_scorecard.csv")
     parser.add_argument("--reorder-plan-out", default="reorder_plan.csv")
@@ -305,14 +361,21 @@ def main():
     print(f"Loading data from: {args.csv}")
     df = load_data(args.csv)
     report = build_report(df, service_level=args.service_level)
-    print(f"Loaded {len(df)} rows across {df['product_id'].nunique()} products.\n")
+    print(
+        f"Loaded {
+            len(df)} rows across {
+            df['product_id'].nunique()} products.\n")
 
     # --- 1. Dead stock ---
-    dead_stock = detect_dead_stock(df, report, window_days=args.dead_stock_days)
+    dead_stock = detect_dead_stock(
+        df, report, window_days=args.dead_stock_days)
     n_dead = dead_stock["is_dead_stock"].sum()
-    print(f"Dead stock check ({args.dead_stock_days}-day window): {n_dead} product(s) flagged.")
+    print(
+        f"Dead stock check ({
+            args.dead_stock_days}-day window): {n_dead} product(s) flagged.")
     if n_dead > 0:
-        exposure = dead_stock.loc[dead_stock["is_dead_stock"], "holding_cost_exposure"].sum()
+        exposure = dead_stock.loc[dead_stock["is_dead_stock"],
+                                  "holding_cost_exposure"].sum()
         print(f"  Total holding cost tied up in dead stock: {exposure:,.2f}")
     dead_path = safe_to_csv(dead_stock, args.dead_stock_out)
     print(f"  Saved: {dead_path}\n")
@@ -321,13 +384,14 @@ def main():
     scorecard = build_supplier_scorecard(report)
     print(f"Supplier scorecard built for {len(scorecard)} supplier(s).")
     print(scorecard[["rank", "supplier_id", "products_supplied",
-                      "avg_lead_time_day", "avg_cost_price", "supplier_score"]]
+                     "avg_lead_time_day", "avg_cost_price", "supplier_score"]]
           .head(10).to_string(index=False))
     supplier_path = safe_to_csv(scorecard, args.supplier_out)
     print(f"  Saved: {supplier_path}\n")
 
     alt_flags = flag_supplier_alternatives(report, scorecard)
-    n_better_available = alt_flags["better_supplier_available"].sum() if not alt_flags.empty else 0
+    n_better_available = alt_flags["better_supplier_available"].sum(
+    ) if not alt_flags.empty else 0
     print(f"  {n_better_available} at-risk product(s) have a better-scoring supplier available elsewhere "
           f"(flagged for manual review, not auto-swapped).\n")
 

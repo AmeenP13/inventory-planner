@@ -13,7 +13,7 @@ Run:
 
 import sqlite3
 import pandas as pd
-import os 
+import os
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent

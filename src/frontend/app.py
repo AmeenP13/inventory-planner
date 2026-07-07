@@ -1,3 +1,4 @@
+import requests
 import streamlit as st
 import streamlit.components.v1 as components
 import json
@@ -17,7 +18,7 @@ st.set_page_config(
 # 2. API & Mock Data Loader Helper
 MOCK_DIR = os.path.join(os.path.dirname(__file__), "mock")
 API_BASE_URL = "http://127.0.0.1:8000"
-import requests
+
 
 def load_mock_json(filename):
     path = os.path.join(MOCK_DIR, filename)
@@ -26,6 +27,7 @@ def load_mock_json(filename):
             return json.load(f)
     st.error(f"Mock file not found: {filename}")
     return {}
+
 
 def get_api_data(endpoint, fallback_filename):
     try:
@@ -36,6 +38,7 @@ def get_api_data(endpoint, fallback_filename):
         pass
     return load_mock_json(fallback_filename)
 
+
 # Load datasets
 overview_data = get_api_data("/api/overview", "overview_data.json")
 inventory_data = get_api_data("/api/inventory_report", "inventory_data.json")
@@ -43,9 +46,11 @@ demand_data = get_api_data("/api/demand_report", "demand_data.json")
 suppliers_data = get_api_data("/api/suppliers_report", "suppliers_data.json")
 
 if "agent_proposal" not in st.session_state:
-    st.session_state.agent_proposal = get_api_data("/api/proposal", "agent_proposal.json")
+    st.session_state.agent_proposal = get_api_data(
+        "/api/proposal", "agent_proposal.json")
 
-# Initialize session state for database persistence (so UI buttons update state)
+# Initialize session state for database persistence (so UI buttons update
+# state)
 if "inventory_db" not in st.session_state and inventory_data:
     st.session_state.inventory_db = pd.DataFrame(inventory_data)
 
@@ -56,7 +61,8 @@ if "proposal_db" not in st.session_state and st.session_state.agent_proposal:
 if "notified_low_stock" not in st.session_state:
     alerts = overview_data.get("alerts", [])
     if alerts:
-        critical_count = sum(1 for a in alerts if a.get("status") == "CRITICAL")
+        critical_count = sum(
+            1 for a in alerts if a.get("status") == "CRITICAL")
         low_count = sum(1 for a in alerts if a.get("status") == "LOW STOCK")
         msg = f"Alert: {critical_count} critical out-of-stock and {low_count} low-stock items detected!"
         st.toast(msg, icon="🚨")
@@ -67,7 +73,7 @@ if "notified_low_stock" not in st.session_state:
 def render_progress_bar(days_left):
     max_days = 14.0
     pct = min(100.0, (days_left / max_days) * 100.0) if days_left > 0 else 0.0
-    
+
     # Determine color matching mockup
     if days_left == 0:
         bar_color = "#E2E8F0"  # Gray empty
@@ -81,7 +87,7 @@ def render_progress_bar(days_left):
     else:
         bar_color = "#2ECC71"  # Green
         text_color = "#2ECC71"
-        
+
     return f"""
     <div style="display: flex; align-items: center; gap: 8px;">
         <div style="background-color: #E2E8F0; width: 60px; height: 6px; border-radius: 3px; overflow: hidden; position: relative;">
@@ -90,6 +96,7 @@ def render_progress_bar(days_left):
         <span style="color: {text_color}; font-weight: 600; font-size: 13px;">{days_left}d</span>
     </div>
     """
+
 
 def render_status_badge(status):
     status = status.upper()
@@ -108,14 +115,21 @@ def render_status_badge(status):
     else:
         bg = "#E0F2FE"
         color = "#0369A1"
-        
+
     return f"""
     <span style="background-color: {bg}; color: {color}; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-block; text-transform: uppercase; border: 1px solid {color}20;">
         {status}
     </span>
     """
 
-def render_kpi_card(title, value, change, detail="", icon="📊", card_type="default"):
+
+def render_kpi_card(
+        title,
+        value,
+        change,
+        detail="",
+        icon="📊",
+        card_type="default"):
     if card_type == "yellow":
         bg_color = "#FFFBEB"
         border_color = "#FEF3C7"
@@ -136,7 +150,7 @@ def render_kpi_card(title, value, change, detail="", icon="📊", card_type="def
         bg_color = "#FFFFFF"
         border_color = "#E4EDF5"
         icon_bg = "#00A8C6"
-        
+
     return f"""
     <div style="background-color: {bg_color}; border: 1px solid {border_color}; padding: 18px; border-radius: 12px; height: 100%; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 4px rgba(28, 61, 90, 0.01);">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
@@ -153,18 +167,19 @@ def render_kpi_card(title, value, change, detail="", icon="📊", card_type="def
     </div>
     """
 
+
 def render_highlight_card(product_name, sku, daily_avg, trend, days_left):
     bg_color = "#FFF5F5"
     border_color = "#FEB2B2"
     badge_color = "#E53E3E"
-    
+
     if days_left <= 3.0:
         days_style = "color: #E53E3E; font-weight: 700;"
     elif days_left <= 7.0:
         days_style = "color: #DD6B20; font-weight: 700;"
     else:
         days_style = "color: #38A169; font-weight: 700;"
-        
+
     return f"""
     <div style="background-color: {bg_color}; border: 1px solid {border_color}; padding: 15px; border-radius: 10px; display: flex; flex-direction: column; justify-content: space-between; height: 100%; box-shadow: 0 2px 5px rgba(229, 62, 62, 0.04);">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
@@ -185,11 +200,13 @@ def render_highlight_card(product_name, sku, daily_avg, trend, days_left):
     </div>
     """
 
+
 TABLE_BASE_CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Plus Jakarta Sans', sans-serif; background: transparent; }
 """
+
 
 def render_table(df_data, is_snapshot=False):
     rows_html = ""
@@ -200,15 +217,15 @@ def render_table(df_data, is_snapshot=False):
         days_left = row['days_left']
         supplier = row['supplier']
         status = row['status']
-        
+
         progress = render_progress_bar(days_left)
         badge = render_status_badge(status)
         stock_color = "#EF4444" if stock == 0 else "#1C3D5A"
-        
+
         action_col = "" if is_snapshot else """
         <td style="padding: 14px 16px; text-align: center; color: #5B7A9C; font-size: 16px; cursor: pointer;">⋮</td>
         """
-        
+
         rows_html += f"""
         <tr style="border-bottom: 1px solid #E4EDF5; color: #1C3D5A;">
             <td style="padding: 14px 16px; font-weight: 500; font-family: monospace; font-size:13px;">{sku}</td>
@@ -242,6 +259,7 @@ def render_table(df_data, is_snapshot=False):
     </table>
     </div></body></html>"""
     return html
+
 
 # 4. Premium Injected CSS Stylesheet
 st.markdown("""
@@ -277,7 +295,7 @@ st.markdown("""
         margin-top: 15px;
         margin-bottom: 15px;
     }
-    
+
     .nav-item {
         display: flex;
         align-items: center;
@@ -291,12 +309,12 @@ st.markdown("""
         margin-bottom: 6px;
         transition: all 0.2s ease-in-out;
     }
-    
+
     .nav-item:hover {
         background-color: #DCE9F6;
         color: #1C3D5A;
     }
-    
+
     .nav-item.active {
         background-color: #BFE3F9;
         color: #1C3D5A;
@@ -304,7 +322,7 @@ st.markdown("""
         border-left: 4px solid #00A8C6;
         border-radius: 0 8px 8px 0;
     }
-    
+
     .nav-link {
         display: flex;
         align-items: center;
@@ -333,7 +351,7 @@ st.markdown("""
         margin-top: 20px;
         padding: 0 5px;
     }
-    
+
     .trigger-btn {
         display: flex;
         align-items: center;
@@ -352,7 +370,7 @@ st.markdown("""
         transition: all 0.2s ease;
         text-align: center;
     }
-    
+
     .trigger-btn:hover {
         background-color: #008fa8;
         transform: translateY(-1px);
@@ -373,7 +391,7 @@ st.markdown("""
         font-size: 12px;
         color: #5B7A9C;
     }
-    
+
     .warehouse-title {
         font-weight: 700;
         color: #1C3D5A;
@@ -386,7 +404,7 @@ st.markdown("""
         cursor: pointer;
         transition: color 0.2s;
     }
-    
+
     .settings-icon:hover {
         color: #1C3D5A;
     }
@@ -496,7 +514,7 @@ st.markdown("""
         max-width: 600px;
         margin: 60px auto;
     }
-    
+
     .spinner {
         width: 50px;
         height: 50px;
@@ -506,12 +524,12 @@ st.markdown("""
         animation: spin 1s linear infinite;
         margin-bottom: 25px;
     }
-    
+
     @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
     }
-    
+
     .loading-step {
         display: flex;
         align-items: center;
@@ -527,7 +545,7 @@ st.markdown("""
         border: 1px solid #E4EDF5;
         transition: all 0.3s ease;
     }
-    
+
     .loading-step.active {
         color: #1C3D5A;
         font-weight: 600;
@@ -535,14 +553,14 @@ st.markdown("""
         background-color: #EBF3FC;
         box-shadow: 0 2px 4px rgba(0, 168, 198, 0.04);
     }
-    
+
     .loading-step.done {
         color: #10B981;
         font-weight: 500;
         border-color: #D1FAE5;
         background-color: #F0FDF4;
     }
-    
+
     .loading-step.pending {
         opacity: 0.65;
     }
@@ -558,7 +576,7 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 </style>
-""",unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # 5. Sidebar Brand & Navigation
 with st.sidebar:
@@ -574,11 +592,11 @@ with st.sidebar:
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
+
     # Navigation Links (Using query parameters for route management)
     params = st.query_params
     selected_page = params.get("page", "Overview")
-    
+
     # Set up navigation links with custom design and badge on Inventory
     st.markdown(f"""
     <div class="nav-container">
@@ -627,7 +645,7 @@ with st.sidebar:
 
     # Padding spacing
     st.write("")
-    
+
     # Sticky Sidebar Footer (Warehouse Select)
     st.markdown("""
     <div class="sidebar-footer">
@@ -686,28 +704,68 @@ st.markdown(f"""
 if selected_page == "Overview":
     # Load Overview Data
     summary = overview_data.get("summary", {})
-    
+
     # KPI Row
     col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
-    
+
     with col_kpi1:
-        st.markdown(render_kpi_card("Total SKUs", summary["total_skus"]["value"], summary["total_skus"]["change"], "Across 9 categories", "📦", "default"), unsafe_allow_html=True)
+        st.markdown(
+            render_kpi_card(
+                "Total SKUs",
+                summary["total_skus"]["value"],
+                summary["total_skus"]["change"],
+                "Across 9 categories",
+                "📦",
+                "default"),
+            unsafe_allow_html=True)
     with col_kpi2:
-        st.markdown(render_kpi_card("Needs Action", summary["needs_action"]["value"], summary["needs_action"]["change"], summary["needs_action"]["detail"], "⚠️", "yellow"), unsafe_allow_html=True)
+        st.markdown(
+            render_kpi_card(
+                "Needs Action",
+                summary["needs_action"]["value"],
+                summary["needs_action"]["change"],
+                summary["needs_action"]["detail"],
+                "⚠️",
+                "yellow"),
+            unsafe_allow_html=True)
     with col_kpi3:
-        st.markdown(render_kpi_card("Avg Daily Velocity", summary["avg_velocity"]["value"], summary["avg_velocity"]["change"], summary["avg_velocity"]["detail"], "📈", "green"), unsafe_allow_html=True)
+        st.markdown(
+            render_kpi_card(
+                "Avg Daily Velocity",
+                summary["avg_velocity"]["value"],
+                summary["avg_velocity"]["change"],
+                summary["avg_velocity"]["detail"],
+                "📈",
+                "green"),
+            unsafe_allow_html=True)
     with col_kpi4:
-        st.markdown(render_kpi_card("Avg SKUs", summary["avg_skus"]["value"], summary["avg_skus"]["change"], summary["avg_skus"]["detail"], "⏱️", "default"), unsafe_allow_html=True)
+        st.markdown(
+            render_kpi_card(
+                "Avg SKUs",
+                summary["avg_skus"]["value"],
+                summary["avg_skus"]["change"],
+                summary["avg_skus"]["detail"],
+                "⏱️",
+                "default"),
+            unsafe_allow_html=True)
     with col_kpi5:
-        st.markdown(render_kpi_card("Critical Alerts", summary["critical_alerts"]["value"], summary["critical_alerts"]["change"], "Urgent attention", "🚨", "red"), unsafe_allow_html=True)
-        
+        st.markdown(
+            render_kpi_card(
+                "Critical Alerts",
+                summary["critical_alerts"]["value"],
+                summary["critical_alerts"]["change"],
+                "Urgent attention",
+                "🚨",
+                "red"),
+            unsafe_allow_html=True)
+
     # Demanded Products Highlight Section
     st.markdown("""
     <div style="font-weight: 700; color: #1C3D5A; font-size: 16px; margin-top: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
         <span>🔥</span> Demanded Products Highlight
     </div>
     """, unsafe_allow_html=True)
-    
+
     col_high1, col_high2, col_high3 = st.columns(3)
     top_velocity_items = demand_data.get("top_velocity_skus", [])[:3]
     for idx, item in enumerate(top_velocity_items):
@@ -724,12 +782,12 @@ if selected_page == "Overview":
             col_high2.markdown(card_html, unsafe_allow_html=True)
         elif idx == 2:
             col_high3.markdown(card_html, unsafe_allow_html=True)
-            
+
     st.write("")
-    
+
     # Main content / Split
     col_main, col_alerts = st.columns([3.2, 1.2])
-    
+
     with col_main:
         # Chart: Demand Trend - Last 13 Days
         st.markdown("""
@@ -738,29 +796,34 @@ if selected_page == "Overview":
             <div style="font-size: 12px; color: #5B7A9C; margin-bottom: 15px;">Units sold by category</div>
         </div>
         """, unsafe_allow_html=True)
-        
+
         # Draw Altair Line & Area chart
         df_trend = pd.DataFrame(overview_data.get("demand_trend", []))
-        df_melt = df_trend.melt(id_vars=["date"], var_name="Category", value_name="Units Sold")
-        
+        df_melt = df_trend.melt(
+            id_vars=["date"],
+            var_name="Category",
+            value_name="Units Sold")
+
         base = alt.Chart(df_melt).encode(
-            x=alt.X('date:N', sort=None, title=None),
-            y=alt.Y('Units Sold:Q', title=None),
-            color=alt.Color('Category:N', scale=alt.Scale(domain=['Electronics', 'Beverages', 'Health', 'Fitness'],
-                                                       range=['#00B4D8', '#4CAF50', '#FF9800', '#9C27B0']), legend=None)
-        )
+            x=alt.X(
+                'date:N', sort=None, title=None), y=alt.Y(
+                'Units Sold:Q', title=None), color=alt.Color(
+                'Category:N', scale=alt.Scale(
+                    domain=[
+                        'Electronics', 'Beverages', 'Health', 'Fitness'], range=[
+                            '#00B4D8', '#4CAF50', '#FF9800', '#9C27B0']), legend=None))
         lines = base.mark_line(interpolate='monotone', strokeWidth=3.5)
         areas = base.mark_area(interpolate='monotone', opacity=0.08)
         chart = (areas + lines).properties(height=260).configure_axis(
             gridOpacity=0.2,
-            gridDash=[2,2],
+            gridDash=[2, 2],
             labelColor='#8CA0B8',
             tickColor='transparent'
         ).configure_view(
             strokeWidth=0
         )
         st.altair_chart(chart, use_container_width=True)
-        
+
         # Legend custom rendering in HTML
         st.markdown("""
         <div style="display: flex; justify-content: center; gap: 20px; font-size: 13px; font-weight: 600; margin-top: -10px; margin-bottom: 25px;">
@@ -775,27 +838,36 @@ if selected_page == "Overview":
         st.markdown("""
         <div style="font-weight: 700; color: #1C3D5A; font-size: 16px; margin-bottom: 12px; margin-top: 10px;">Inventory Snapshot</div>
         """, unsafe_allow_html=True)
-        
+
         df_snapshot = pd.DataFrame(overview_data.get("snapshot_inventory", []))
         n_rows_snap = len(df_snapshot)
-        components.html(render_table(df_snapshot, is_snapshot=True), height=68 + n_rows_snap * 58, scrolling=False)
-        
+        components.html(
+            render_table(
+                df_snapshot,
+                is_snapshot=True),
+            height=68 +
+            n_rows_snap *
+            58,
+            scrolling=False)
+
     with col_alerts:
         # Critical Alerts Panel
         st.markdown("""
         <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 20px; min-height: 520px; display: flex; flex-direction: column;">
             <div style="font-weight: 700; color: #1C3D5A; font-size: 17px; margin-bottom: 15px;">Critical Alerts</div>
         """, unsafe_allow_html=True)
-        
+
         # Alert List rendering
         for item in overview_data.get("alerts", []):
             is_critical = item["status"] == "CRITICAL"
-            badge_color = "#E63946" if is_critical else ("#F59E0B" if item["status"] == "LOW STOCK" else "#94A3B8")
-            badge_bg = "#FEE2E2" if is_critical else ("#FEF3C7" if item["status"] == "LOW STOCK" else "#F3F4F6")
-            
+            badge_color = "#E63946" if is_critical else (
+                "#F59E0B" if item["status"] == "LOW STOCK" else "#94A3B8")
+            badge_bg = "#FEE2E2" if is_critical else (
+                "#FEF3C7" if item["status"] == "LOW STOCK" else "#F3F4F6")
+
             # Draw progress bar for alerts
             progress_pct = min(100.0, (item["days_left"] / 14.0) * 100.0)
-            
+
             # Render Alert Card first
             st.markdown(f"""
             <div style="background-color: #F8FAFC; border: 1px solid #E4EDF5; border-radius: 8px; padding: 12px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px;">
@@ -812,7 +884,7 @@ if selected_page == "Overview":
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            
+
             # If it has dialog block, render it
             if "dialog" in item:
                 st.markdown(f"""
@@ -824,19 +896,26 @@ if selected_page == "Overview":
                     <div style="font-size: 11px; font-weight: 600; color: #E63946; margin-bottom: 2px;">⏰ {item["dialog"]["timer"]}</div>
                 </div>
                 """, unsafe_allow_html=True)
-                
+
                 # Interactive Restock Buttons
                 btn_yes, btn_no = st.columns(2)
                 with btn_yes:
-                    if st.button("Yes", key="alert_restock_yes", use_container_width=True):
-                        st.toast("🤖 AI Replenishment process triggered!", icon="⚡")
+                    if st.button(
+                        "Yes",
+                        key="alert_restock_yes",
+                            use_container_width=True):
+                        st.toast(
+                            "🤖 AI Replenishment process triggered!", icon="⚡")
                         st.query_params["page"] = "AI_Agent"
                         st.query_params["run"] = "true"
                         st.rerun()
                 with btn_no:
-                    if st.button("No", key="alert_restock_no", use_container_width=True):
+                    if st.button(
+                        "No",
+                        key="alert_restock_no",
+                            use_container_width=True):
                         st.toast("Replenishment dialog dismissed.")
-        
+
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ----------------------------------------------------
@@ -844,29 +923,69 @@ if selected_page == "Overview":
 # ----------------------------------------------------
 elif selected_page == "Inventory":
     df_inv = st.session_state.inventory_db
-    
+
     # Calculate Dynamic KPI Metrics
     total_items = len(df_inv)
     low_stock = len(df_inv[df_inv["status"] == "LOW STOCK"])
     out_of_stock = len(df_inv[df_inv["status"] == "OUT OF STOCK"])
     healthy = len(df_inv[df_inv["status"] == "HEALTHY"])
     avg_days = round(df_inv["days_left"].mean(), 1)
-    
+
     # Inventory KPI Cards
     col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
     with col_kpi1:
-        st.markdown(render_kpi_card("Total SKUs", total_items, "Across 9 categories", "Active Catalog", "📦", "default"), unsafe_allow_html=True)
+        st.markdown(
+            render_kpi_card(
+                "Total SKUs",
+                total_items,
+                "Across 9 categories",
+                "Active Catalog",
+                "📦",
+                "default"),
+            unsafe_allow_html=True)
     with col_kpi2:
-        st.markdown(render_kpi_card("Low Stock", low_stock, f"{low_stock} items low", "Needs attention", "⚠️", "yellow"), unsafe_allow_html=True)
+        st.markdown(
+            render_kpi_card(
+                "Low Stock",
+                low_stock,
+                f"{low_stock} items low",
+                "Needs attention",
+                "⚠️",
+                "yellow"),
+            unsafe_allow_html=True)
     with col_kpi3:
-        st.markdown(render_kpi_card("Out of Stock", out_of_stock, f"{out_of_stock} items empty", "Urgent restock", "🚫", "red"), unsafe_allow_html=True)
+        st.markdown(
+            render_kpi_card(
+                "Out of Stock",
+                out_of_stock,
+                f"{out_of_stock} items empty",
+                "Urgent restock",
+                "🚫",
+                "red"),
+            unsafe_allow_html=True)
     with col_kpi4:
-        st.markdown(render_kpi_card("Healthy Stock", healthy, f"{healthy} items safe", "Well stocked", "✅", "green"), unsafe_allow_html=True)
+        st.markdown(
+            render_kpi_card(
+                "Healthy Stock",
+                healthy,
+                f"{healthy} items safe",
+                "Well stocked",
+                "✅",
+                "green"),
+            unsafe_allow_html=True)
     with col_kpi5:
-        st.markdown(render_kpi_card("Avg. Days Left", f"{avg_days}d", "All Inventory", "Stock coverage", "⏱️", "purple"), unsafe_allow_html=True)
-        
+        st.markdown(
+            render_kpi_card(
+                "Avg. Days Left",
+                f"{avg_days}d",
+                "All Inventory",
+                "Stock coverage",
+                "⏱️",
+                "purple"),
+            unsafe_allow_html=True)
+
     st.write("")
-    
+
     # Filters Row
     st.markdown("""
     <style>
@@ -875,21 +994,41 @@ elif selected_page == "Inventory":
     }
     </style>
     """, unsafe_allow_html=True)
-    
-    col_filt_search, col_filt_cat, col_filt_sup, col_filt_stat = st.columns([1.5, 1, 1, 1])
-    
+
+    col_filt_search, col_filt_cat, col_filt_sup, col_filt_stat = st.columns([
+                                                                            1.5, 1, 1, 1])
+
     with col_filt_search:
-        search_query = st.text_input("Search bar", placeholder="Search by SKU, product, or supplier...", label_visibility="collapsed")
+        search_query = st.text_input(
+            "Search bar",
+            placeholder="Search by SKU, product, or supplier...",
+            label_visibility="collapsed")
     with col_filt_cat:
-        categories = ["All Categories"] + sorted(list(df_inv["category"].unique()))
-        selected_cat = st.selectbox("Category select", categories, label_visibility="collapsed")
+        categories = ["All Categories"] + \
+            sorted(list(df_inv["category"].unique()))
+        selected_cat = st.selectbox(
+            "Category select",
+            categories,
+            label_visibility="collapsed")
     with col_filt_sup:
-        suppliers = ["All Suppliers"] + sorted(list(df_inv["supplier"].unique()))
-        selected_sup = st.selectbox("Supplier select", suppliers, label_visibility="collapsed")
+        suppliers = ["All Suppliers"] + \
+            sorted(list(df_inv["supplier"].unique()))
+        selected_sup = st.selectbox(
+            "Supplier select",
+            suppliers,
+            label_visibility="collapsed")
     with col_filt_stat:
-        statuses = ["All Statuses", "CRITICAL", "LOW STOCK", "OUT OF STOCK", "HEALTHY"]
-        selected_stat = st.selectbox("Status select", statuses, label_visibility="collapsed")
-        
+        statuses = [
+            "All Statuses",
+            "CRITICAL",
+            "LOW STOCK",
+            "OUT OF STOCK",
+            "HEALTHY"]
+        selected_stat = st.selectbox(
+            "Status select",
+            statuses,
+            label_visibility="collapsed")
+
     # Apply Filtering
     df_filtered = df_inv.copy()
     if search_query:
@@ -904,11 +1043,16 @@ elif selected_page == "Inventory":
         df_filtered = df_filtered[df_filtered["supplier"] == selected_sup]
     if selected_stat != "All Statuses":
         df_filtered = df_filtered[df_filtered["status"] == selected_stat]
-        
+
     # Render Table
     n_rows = len(df_filtered)
-    components.html(render_table(df_filtered, is_snapshot=False), height=68 + n_rows * 58, scrolling=n_rows > 10)
-    
+    components.html(
+        render_table(
+            df_filtered,
+            is_snapshot=False),
+        height=68 + n_rows * 58,
+        scrolling=n_rows > 10)
+
     # Mock Pagination
     st.markdown(f"""
     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; font-size: 13px; color: #5B7A9C; padding: 0 10px;">
@@ -930,7 +1074,7 @@ elif selected_page == "Inventory":
 elif selected_page == "Demand":
     # 2 Charts Side by Side
     col_chart1, col_chart2 = st.columns(2)
-    
+
     with col_chart1:
         st.markdown("""
         <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 20px; margin-bottom: 15px;">
@@ -938,25 +1082,47 @@ elif selected_page == "Demand":
             <div style="font-size: 12px; color: #5B7A9C; margin-bottom: 10px;">Units sold per day by category</div>
         </div>
         """, unsafe_allow_html=True)
-        
+
         # Line chart from demand_data
         df_trend = pd.DataFrame(demand_data.get("sales_velocity_trend", []))
-        df_melt = df_trend.melt(id_vars=["date"], var_name="Category", value_name="Units Sold")
-        
-        chart_line = alt.Chart(df_melt).mark_line(interpolate='monotone', strokeWidth=3.5).encode(
-            x=alt.X('date:N', sort=None, title=None),
-            y=alt.Y('Units Sold:Q', title=None),
-            color=alt.Color('Category:N', scale=alt.Scale(domain=['Electronics', 'Beverages', 'Health', 'Fitness'],
-                                                       range=['#00B4D8', '#4CAF50', '#FF9800', '#9C27B0']), title=None)
-        ).properties(height=260).configure_axis(
+        df_melt = df_trend.melt(
+            id_vars=["date"],
+            var_name="Category",
+            value_name="Units Sold")
+
+        chart_line = alt.Chart(df_melt).mark_line(
+            interpolate='monotone',
+            strokeWidth=3.5).encode(
+            x=alt.X(
+                'date:N',
+                sort=None,
+                title=None),
+            y=alt.Y(
+                'Units Sold:Q',
+                title=None),
+            color=alt.Color(
+                'Category:N',
+                scale=alt.Scale(
+                    domain=[
+                        'Electronics',
+                        'Beverages',
+                        'Health',
+                        'Fitness'],
+                    range=[
+                        '#00B4D8',
+                        '#4CAF50',
+                        '#FF9800',
+                        '#9C27B0']),
+                title=None)).properties(
+            height=260).configure_axis(
             gridOpacity=0.2,
-            gridDash=[2,2],
-            labelColor='#8CA0B8'
-        ).configure_view(
-            strokeWidth=0
-        )
+            gridDash=[
+                2,
+                2],
+            labelColor='#8CA0B8').configure_view(
+            strokeWidth=0)
         st.altair_chart(chart_line, use_container_width=True)
-        
+
     with col_chart2:
         st.markdown("""
         <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 20px; margin-bottom: 15px;">
@@ -964,33 +1130,52 @@ elif selected_page == "Demand":
             <div style="font-size: 12px; color: #5B7A9C; margin-bottom: 10px;">Jun 19 — Jun 24 volume breakdown</div>
         </div>
         """, unsafe_allow_html=True)
-        
+
         # Stacked bar chart
         df_vol = pd.DataFrame(demand_data.get("daily_volume_by_category", []))
-        chart_bar = alt.Chart(df_vol).mark_bar(size=25, cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
-            x=alt.X('date:N', title=None),
-            y=alt.Y('volume:Q', title=None),
-            color=alt.Color('category:N', scale=alt.Scale(domain=['Electronics', 'Beverages', 'Health', 'Fitness'],
-                                                       range=['#00B4D8', '#4CAF50', '#FF9800', '#9C27B0']), title=None)
-        ).properties(height=260).configure_axis(
+        chart_bar = alt.Chart(df_vol).mark_bar(
+            size=25,
+            cornerRadiusTopLeft=4,
+            cornerRadiusTopRight=4).encode(
+            x=alt.X(
+                'date:N',
+                title=None),
+            y=alt.Y(
+                'volume:Q',
+                title=None),
+            color=alt.Color(
+                'category:N',
+                scale=alt.Scale(
+                    domain=[
+                        'Electronics',
+                        'Beverages',
+                        'Health',
+                        'Fitness'],
+                    range=[
+                        '#00B4D8',
+                        '#4CAF50',
+                        '#FF9800',
+                        '#9C27B0']),
+                title=None)).properties(
+            height=260).configure_axis(
             gridOpacity=0.2,
-            gridDash=[2,2],
-            labelColor='#8CA0B8'
-        ).configure_view(
-            strokeWidth=0
-        )
+            gridDash=[
+                2,
+                2],
+            labelColor='#8CA0B8').configure_view(
+            strokeWidth=0)
         st.altair_chart(chart_bar, use_container_width=True)
-        
+
     st.write("")
-    
+
     # Top Velocity SKUs Table
     st.markdown("""
     <div style="font-weight: 700; color: #1C3D5A; font-size: 17px; margin-bottom: 12px;">Top Velocity SKUs</div>
     """, unsafe_allow_html=True)
-    
+
     # Compile table in HTML
     top_skus = demand_data.get("top_velocity_skus", [])
-    
+
     html_top = """
     <div style="overflow-x: auto; background-color: #FFFFFF; border-radius: 12px; border: 1px solid #E4EDF5; box-shadow: 0 2px 4px rgba(28,61,90,0.01);">
     <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
@@ -1007,7 +1192,7 @@ elif selected_page == "Demand":
         </thead>
         <tbody>
     """
-    
+
     for row in top_skus:
         sku = row['sku']
         product = row['product']
@@ -1016,13 +1201,13 @@ elif selected_page == "Demand":
         seven_day_total = row['seven_day_total']
         trend = row['trend']
         days_remaining = row['days_remaining']
-        
+
         progress = render_progress_bar(days_remaining)
-        
+
         # Color coding for trends
         trend_color = "#10B981" if "+" in trend else "#EF4444"
         arrow = "↑" if "+" in trend else "↓"
-        
+
         html_top += f"""
             <tr style="border-bottom: 1px solid #E4EDF5; color: #1C3D5A;">
                 <td style="padding: 14px 16px; font-weight: 500; font-family: monospace;">{sku}</td>
@@ -1034,7 +1219,7 @@ elif selected_page == "Demand":
                 <td style="padding: 14px 16px;">{progress}</td>
             </tr>
         """
-        
+
     html_top += """
         </tbody>
     </table>
@@ -1059,10 +1244,11 @@ elif selected_page == "Demand":
 elif selected_page == "Suppliers":
     # Supplier cards horizontally
     col_sup1, col_sup2, col_sup3, col_sup4, col_sup5 = st.columns(5)
-    
+
     for idx, sup in enumerate(suppliers_data):
-        reliability_color = "#10B981" if sup["reliability"] >= 90 else ("#F59E0B" if sup["reliability"] >= 85 else "#EF4444")
-        
+        reliability_color = "#10B981" if sup["reliability"] >= 90 else (
+            "#F59E0B" if sup["reliability"] >= 85 else "#EF4444")
+
         sup_html = f"""
         <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 18px; box-shadow: 0 2px 4px rgba(28,61,90,0.01); display: flex; flex-direction: column; justify-content: space-between;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -1094,7 +1280,7 @@ elif selected_page == "Suppliers":
             </div>
         </div>
         """
-        
+
         # Place in appropriate column
         if idx == 0:
             col_sup1.markdown(sup_html, unsafe_allow_html=True)
@@ -1109,7 +1295,7 @@ elif selected_page == "Suppliers":
 
     st.write("")
     st.write("")
-    
+
     # Bar Chart Supplier Reliability
     st.markdown("""
     <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 20px;">
@@ -1117,18 +1303,35 @@ elif selected_page == "Suppliers":
         <div style="font-size: 12px; color: #5B7A9C; margin-bottom: 15px;">Vendor reliability comparisons (%)</div>
     </div>
     """, unsafe_allow_html=True)
-    
+
     df_sup = pd.DataFrame(suppliers_data)
-    chart_sup = alt.Chart(df_sup).mark_bar(size=35, color='#00A8C6', cornerRadiusTopLeft=6, cornerRadiusTopRight=6).encode(
-        x=alt.X('name:N', title=None, axis=alt.Axis(labelAngle=0, labelColor='#4A607A', labelFontWeight='bold')),
-        y=alt.Y('reliability:Q', title=None, scale=alt.Scale(domain=[70, 100], clamp=True))
-    ).properties(height=260).configure_axis(
+    chart_sup = alt.Chart(df_sup).mark_bar(
+        size=35,
+        color='#00A8C6',
+        cornerRadiusTopLeft=6,
+        cornerRadiusTopRight=6).encode(
+        x=alt.X(
+            'name:N',
+            title=None,
+            axis=alt.Axis(
+                labelAngle=0,
+                labelColor='#4A607A',
+                labelFontWeight='bold')),
+        y=alt.Y(
+            'reliability:Q',
+            title=None,
+            scale=alt.Scale(
+                domain=[
+                    70,
+                    100],
+                clamp=True))).properties(
+        height=260).configure_axis(
         gridOpacity=0.2,
-        gridDash=[2,2],
-        labelColor='#8CA0B8'
-    ).configure_view(
-        strokeWidth=0
-    )
+        gridDash=[
+            2,
+            2],
+        labelColor='#8CA0B8').configure_view(
+        strokeWidth=0)
     st.altair_chart(chart_sup, use_container_width=True)
 
 # ----------------------------------------------------
@@ -1138,17 +1341,17 @@ elif selected_page == "AI_Agent":
     # Simulated Agent Run Execution (Day 5 & 6)
     params = st.query_params
     run_agent = params.get("run", "false") == "true"
-    
+
     if run_agent:
         placeholder = st.empty()
-        
+
         steps = [
             {"icon": "🔍", "text": "Querying vector database for procurement policies (RAG)..."},
             {"icon": "⚙️", "text": "Evaluating vendor reliability & historical lead times..."},
             {"icon": "💡", "text": "Running discount analysis & safety stock formulas..."},
             {"icon": "📝", "text": "Generating policy-compliant replenishment proposals..."}
         ]
-        
+
         for i in range(len(steps)):
             steps_html = ""
             for idx, step in enumerate(steps):
@@ -1164,7 +1367,7 @@ elif selected_page == "AI_Agent":
                     status_class = "pending"
                     indicator = "⚪ Pending"
                     step_text = step['text']
-                    
+
                 steps_html += f"""
                 <div class="loading-step {status_class}">
                     <span style="font-size: 16px;">{step['icon']}</span>
@@ -1172,7 +1375,7 @@ elif selected_page == "AI_Agent":
                     <span style="font-size: 11px; font-weight: bold; text-transform: uppercase;">{indicator}</span>
                 </div>
                 """
-                
+
             loading_card_html = f"""
             <div class="spinner-container">
                 <div class="spinner"></div>
@@ -1183,21 +1386,24 @@ elif selected_page == "AI_Agent":
             </div>
             """
             placeholder.markdown(loading_card_html, unsafe_allow_html=True)
-            
+
             if i == 2:
                 # Actual backend API trigger
                 try:
-                    res = requests.post(f"{API_BASE_URL}/api/replenish", timeout=60)
+                    res = requests.post(
+                        f"{API_BASE_URL}/api/replenish", timeout=60)
                     if res.status_code == 200:
                         st.session_state.agent_proposal = res.json()
-                        st.session_state.proposal_db = st.session_state.agent_proposal["recommendations"]
+                        st.session_state.proposal_db = st.session_state.agent_proposal[
+                            "recommendations"]
                     else:
-                        st.error("FastAPI backend failed to process replenishment.")
+                        st.error(
+                            "FastAPI backend failed to process replenishment.")
                 except Exception as e:
                     st.error(f"Error calling replenishment API: {e}")
             else:
                 time.sleep(0.05)
-            
+
         # Final step complete render
         steps_html = ""
         for step in steps:
@@ -1223,10 +1429,13 @@ elif selected_page == "AI_Agent":
         placeholder.empty()
         st.query_params["run"] = "false"
         st.rerun()
-        
-    agent_proposal = st.session_state.get("agent_proposal", load_mock_json("agent_proposal.json"))
-    recs = st.session_state.get("proposal_db", agent_proposal["recommendations"])
-    
+
+    agent_proposal = st.session_state.get(
+        "agent_proposal", load_mock_json("agent_proposal.json"))
+    recs = st.session_state.get(
+        "proposal_db",
+        agent_proposal["recommendations"])
+
     # 1. Proposal Banner with interactive re-run button
     col_banner_info, col_banner_btn = st.columns([3.2, 0.8])
     with col_banner_info:
@@ -1258,10 +1467,13 @@ elif selected_page == "AI_Agent":
         }
         </style>
         """, unsafe_allow_html=True)
-        if st.button("⚡ Re-run AI Agent", key="run_proposal_analysis_banner", use_container_width=True):
+        if st.button(
+            "⚡ Re-run AI Agent",
+            key="run_proposal_analysis_banner",
+                use_container_width=True):
             st.query_params["run"] = "true"
             st.rerun()
-    
+
     # 2. RAG policy context log card
     st.markdown(f"""
     <div style="background-color: #FFF9E6; border: 1px solid #FFE0B2; border-radius: 8px; padding: 15px 20px; display: flex; align-items: flex-start; gap: 15px; margin-bottom: 25px;">
@@ -1272,10 +1484,11 @@ elif selected_page == "AI_Agent":
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
+
     # Define tabs for Day 4 task
-    tab_orders, tab_report = st.tabs(["📋 Actionable Recommendations", "🧠 AI Executive Report & Reasoning"])
-    
+    tab_orders, tab_report = st.tabs(
+        ["📋 Actionable Recommendations", "🧠 AI Executive Report & Reasoning"])
+
     with tab_orders:
         # Recommendations Header & Action Button
         col_hdr_recs, col_hdr_btn = st.columns([3, 1])
@@ -1285,30 +1498,38 @@ elif selected_page == "AI_Agent":
             """, unsafe_allow_html=True)
         with col_hdr_btn:
             # Action button to approve all remaining orders
-            if st.button("📥 APPROVE ALL ORDERS", key="approve_all", use_container_width=True):
+            if st.button(
+                "📥 APPROVE ALL ORDERS",
+                key="approve_all",
+                    use_container_width=True):
                 for item in recs:
                     st.session_state[f"approved_{item['sku']}"] = True
                 st.toast("✅ Approved all recommended orders!", icon="📦")
                 st.rerun()
-                
+
         st.write("")
-        
+
         # Render recommended orders list
         for idx, item in enumerate(recs):
-            is_approved = st.session_state.get(f"approved_{item['sku']}", item["approved"])
+            is_approved = st.session_state.get(
+                f"approved_{item['sku']}", item["approved"])
             is_urgent = item["urgency"] == "URGENT ORDER"
-            
+
             # Color coding state matching
             card_bg = "#FFFFFF" if is_approved else "#F8FAFC"
             card_opacity = "1.0" if is_approved else "0.55"
-            border_color = ("#EF4444" if is_urgent else "#F59E0B") if is_approved else "#94A3B8"
-            badge_bg = ("#FEE2E2" if is_urgent else "#FEF3C7") if is_approved else "#E2E8F0"
-            badge_fg = ("#EF4444" if is_urgent else "#D97706") if is_approved else "#64748B"
+            border_color = (
+                "#EF4444" if is_urgent else "#F59E0B") if is_approved else "#94A3B8"
+            badge_bg = (
+                "#FEE2E2" if is_urgent else "#FEF3C7") if is_approved else "#E2E8F0"
+            badge_fg = (
+                "#EF4444" if is_urgent else "#D97706") if is_approved else "#64748B"
             urg_text = item["urgency"] if is_approved else "REJECTED"
-            
+
             # Render item columns
-            col_desc, col_units, col_vendor, col_action_btns = st.columns([5.5, 1.5, 2, 1.5])
-            
+            col_desc, col_units, col_vendor, col_action_btns = st.columns([
+                                                                          5.5, 1.5, 2, 1.5])
+
             with col_desc:
                 st.markdown(f"""
                 <div style="border-left: 4px solid {border_color}; background-color: {card_bg}; opacity: {card_opacity}; border-top: 1px solid #E4EDF5; border-right: 1px solid #E4EDF5; border-bottom: 1px solid #E4EDF5; border-radius: 0 8px 8px 0; padding: 14px 16px; min-height: 85px; display: flex; flex-direction: column; justify-content: center;">
@@ -1320,7 +1541,7 @@ elif selected_page == "AI_Agent":
                     <div style="font-size: 12.5px; color: #5B7A9C; line-height: 1.4; margin-top: 5px;">{item["reason"]}</div>
                 </div>
                 """, unsafe_allow_html=True)
-                
+
             with col_units:
                 st.markdown(f"""
                 <div style="background-color: {card_bg}; opacity: {card_opacity}; border-top: 1px solid #E4EDF5; border-bottom: 1px solid #E4EDF5; padding: 14px 10px; min-height: 85px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
@@ -1328,7 +1549,7 @@ elif selected_page == "AI_Agent":
                     <div style="font-size: 11px; color: #5B7A9C;">units</div>
                 </div>
                 """, unsafe_allow_html=True)
-                
+
             with col_vendor:
                 st.markdown(f"""
                 <div style="background-color: {card_bg}; opacity: {card_opacity}; border-top: 1px solid #E4EDF5; border-bottom: 1px solid #E4EDF5; padding: 14px 10px; min-height: 85px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
@@ -1338,7 +1559,7 @@ elif selected_page == "AI_Agent":
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-                
+
             with col_action_btns:
                 # Interactive action buttons
                 st.markdown(f"""
@@ -1359,29 +1580,39 @@ elif selected_page == "AI_Agent":
                 </style>
                 <div class="btn-holder-{idx}">
                 """, unsafe_allow_html=True)
-                
+
                 sub_b1, sub_b2 = st.columns(2)
                 with sub_b1:
                     # Approve check button
-                    if st.button("✓", key=f"app_check_{item['sku']}", use_container_width=True, help="Approve Order"):
+                    if st.button(
+                            "✓",
+                            key=f"app_check_{
+                                item['sku']}",
+                            use_container_width=True,
+                            help="Approve Order"):
                         st.session_state.proposal_db[idx]["approved"] = True
                         st.session_state[f"approved_{item['sku']}"] = True
                         st.toast(f"✅ Approved: {item['product']}")
                         st.rerun()
                 with sub_b2:
                     # Reject cross button
-                    if st.button("✗", key=f"rej_cross_{item['sku']}", use_container_width=True, help="Reject Order"):
+                    if st.button(
+                            "✗",
+                            key=f"rej_cross_{
+                                item['sku']}",
+                            use_container_width=True,
+                            help="Reject Order"):
                         st.session_state.proposal_db[idx]["approved"] = False
                         st.session_state[f"approved_{item['sku']}"] = False
                         st.toast(f"❌ Rejected: {item['product']}")
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
-                
+
             st.write("")
-            
+
     with tab_report:
         col_report_left, col_report_right = st.columns([1.8, 1.2])
-        
+
         with col_report_left:
             st.markdown(f"""
             <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px rgba(28, 61, 90, 0.02); min-height: 520px; color: #1C3D5A;">
@@ -1391,7 +1622,7 @@ elif selected_page == "AI_Agent":
             """, unsafe_allow_html=True)
             st.markdown(agent_proposal.get("executive_report", ""))
             st.markdown("</div>", unsafe_allow_html=True)
-            
+
         with col_report_right:
             st.markdown("""
             <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(28, 61, 90, 0.02); min-height: 520px; color: #1C3D5A;">
@@ -1399,13 +1630,15 @@ elif selected_page == "AI_Agent":
                     <span>🧠</span> LangGraph Node Tracing
                 </div>
             """, unsafe_allow_html=True)
-            
-            for node_idx, step in enumerate(agent_proposal.get("cognitive_reasoning_log", [])):
+
+            for node_idx, step in enumerate(
+                agent_proposal.get(
+                    "cognitive_reasoning_log", [])):
                 node_name = step["node"]
                 node_msg = step["message"]
                 node_step = step["step"]
                 node_status = step["status"]
-                
+
                 st.markdown(f"""
                 <div style="display: flex; gap: 12px; position: relative; margin-bottom: 18px;">
                     {"<div style='position: absolute; left: 15px; top: 30px; bottom: -30px; width: 2px; background-color: #00A8C630; z-index: 1;'></div>" if node_idx < len(agent_proposal.get("cognitive_reasoning_log", [])) - 1 else ""}
@@ -1421,5 +1654,5 @@ elif selected_page == "AI_Agent":
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-                
+
             st.markdown("</div>", unsafe_allow_html=True)

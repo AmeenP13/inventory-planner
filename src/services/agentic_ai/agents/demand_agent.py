@@ -8,10 +8,15 @@ def demand_agent(state: State):
     if not inventory_history:
         return state
 
-    total_sold = sum(int(record.get("quantity_sold", 0)) for record in inventory_history)
+    total_sold = sum(int(record.get("quantity_sold", 0))
+                     for record in inventory_history)
     period_days = _calculate_history_days(inventory_history)
-    average_daily_sales = round(total_sold / period_days, 2) if period_days else 0.0
-    estimated_demand = round(total_sold / len(inventory_history), 2) if inventory_history else 0.0
+    average_daily_sales = round(
+        total_sold / period_days,
+        2) if period_days else 0.0
+    estimated_demand = round(
+        total_sold / len(inventory_history),
+        2) if inventory_history else 0.0
 
     demand_summary = {
         "average_daily_sales": average_daily_sales,
@@ -55,7 +60,5 @@ def _update_next_day_inventory(state: State, demand_summary: dict) -> None:
 
     next_day["average_daily_sales"] = demand_summary["average_daily_sales"]
     next_day["estimated_demand"] = demand_summary["estimated_demand"]
-    next_day["forecasted_stock"] = max(
-        0,
-        int(next_day.get("current_stock", 0) - round(demand_summary["average_daily_sales"]))
-    )
+    next_day["forecasted_stock"] = max(0, int(next_day.get(
+        "current_stock", 0) - round(demand_summary["average_daily_sales"])))

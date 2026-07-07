@@ -40,7 +40,9 @@ def _create_embedding_model() -> HuggingFaceEmbeddings:
     return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
 
 
-def _create_vector_db(chunks: list[str], embedding_model: HuggingFaceEmbeddings) -> Chroma:
+def _create_vector_db(
+        chunks: list[str],
+        embedding_model: HuggingFaceEmbeddings) -> Chroma:
     return Chroma.from_texts(
         texts=chunks,
         embedding=embedding_model,

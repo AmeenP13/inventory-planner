@@ -3,17 +3,18 @@ from src.services.agentic_ai.state import State
 from datetime import datetime, timedelta
 from src.backend.database import get_connection
 
+
 def inventory_agent(state: State):
     last_msg = state["message"][-1]
     if hasattr(last_msg, "content"):
         product_name = last_msg.content.lower().strip()
     else:
         product_name = str(last_msg).lower().strip()
-    
+
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT 
+        SELECT
             i.date,
             p.product_name,
             i.current_stock,

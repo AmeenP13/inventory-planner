@@ -20,12 +20,14 @@ from .models import Product, Supplier, InventoryRecord, SalesRecord, InventoryUp
 from contextlib import asynccontextmanager
 import threading
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Pre-loading Chroma vector database and HuggingFace embedding model...")
     try:
         from src.services.rag_policy.vector_db import get_vector_db
-        # Run in a background thread so the server finishes starting up immediately
+        # Run in a background thread so the server finishes starting up
+        # immediately
         t = threading.Thread(target=get_vector_db)
         t.start()
     except Exception as e:
@@ -40,7 +42,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 
 @app.get("/")
@@ -64,7 +65,8 @@ def get_product(product_id: int):
     ).fetchone()
     conn.close()
     if row is None:
-        raise HTTPException(status_code=404, detail=f"Product {product_id} not found")
+        raise HTTPException(status_code=404,
+                            detail=f"Product {product_id} not found")
     return dict(row)
 
 
@@ -77,7 +79,9 @@ def get_suppliers():
 
 
 @app.get("/api/inventory", response_model=List[InventoryRecord])
-def get_inventory(product_id: Optional[int] = None, date: Optional[str] = None):
+def get_inventory(
+        product_id: Optional[int] = None,
+        date: Optional[str] = None):
     conn = database.get_connection()
     query = "SELECT * FROM inventory_daily WHERE 1=1"
     params = []
@@ -144,7 +148,9 @@ def update_inventory(update: InventoryUpdate):
     ).fetchone()
     if not exists:
         conn.close()
-        raise HTTPException(status_code=404, detail=f"Product {update.product_id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"Product {
+                update.product_id} not found")
 
     conn.execute(
         """
@@ -160,7 +166,11 @@ def update_inventory(update: InventoryUpdate):
     conn.close()
     global _PROPOSAL_CACHE
     _PROPOSAL_CACHE = None
-    return {"status": "ok", "message": f"Inventory updated for product {update.product_id} on {update.date}"}
+    return {
+        "status": "ok",
+        "message": f"Inventory updated for product {
+            update.product_id} on {
+            update.date}"}
 
 
 @app.post("/api/approve_order")
@@ -171,7 +181,9 @@ def approve_order(order: OrderApproval):
     ).fetchone()
     conn.close()
     if not product:
-        raise HTTPException(status_code=404, detail=f"Product {order.product_id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"Product {
+                order.product_id} not found")
 
     global _PROPOSAL_CACHE
     _PROPOSAL_CACHE = None
@@ -208,21 +220,56 @@ def get_dead_stock(days: int = 14, max_units_sold: int = 5):
 
 _PROPOSAL_CACHE = None
 
+
 class ReplenishRequest(BaseModel):
     product_name: Optional[str] = None
 
 
 def get_product_category(name: str) -> str:
     name_lower = name.lower()
-    if any(x in name_lower for x in ["apple", "banana", "orange", "grape", "fruit", "vegetable"]):
+    if any(
+        x in name_lower for x in [
+            "apple",
+            "banana",
+            "orange",
+            "grape",
+            "fruit",
+            "vegetable"]):
         return "Produce"
-    if any(x in name_lower for x in ["milk", "butter", "cheese", "yogurt", "cream", "dairy"]):
+    if any(
+        x in name_lower for x in [
+            "milk",
+            "butter",
+            "cheese",
+            "yogurt",
+            "cream",
+            "dairy"]):
         return "Dairy"
-    if any(x in name_lower for x in ["bread", "cake", "cookie", "pastry", "bakery"]):
+    if any(
+        x in name_lower for x in [
+            "bread",
+            "cake",
+            "cookie",
+            "pastry",
+            "bakery"]):
         return "Bakery"
-    if any(x in name_lower for x in ["coffee", "tea", "water", "soda", "juice", "beverage"]):
+    if any(
+        x in name_lower for x in [
+            "coffee",
+            "tea",
+            "water",
+            "soda",
+            "juice",
+            "beverage"]):
         return "Beverages"
-    if any(x in name_lower for x in ["chicken", "beef", "pork", "meat", "fish", "salmon"]):
+    if any(
+        x in name_lower for x in [
+            "chicken",
+            "beef",
+            "pork",
+            "meat",
+            "fish",
+            "salmon"]):
         return "Meat"
     return "Groceries"
 
@@ -231,7 +278,7 @@ def get_combined_report(service_level: float = 0.95):
     from src.services.analytics.inventory_management import build_report
     conn = database.get_connection()
     query = """
-        SELECT 
+        SELECT
             i.product_id,
             p.product_name,
             i.current_stock,
@@ -255,7 +302,8 @@ def get_combined_report(service_level: float = 0.95):
     df["expiry_date"] = pd.to_datetime(df["expiry_date"], errors="coerce")
 
     # Clean
-    df["quantity_sold"] = pd.to_numeric(df["quantity_sold"], errors="coerce").fillna(0)
+    df["quantity_sold"] = pd.to_numeric(
+        df["quantity_sold"], errors="coerce").fillna(0)
     df = df.dropna(subset=["product_id", "date"])
 
     report = build_report(df, service_level=service_level)
@@ -267,20 +315,26 @@ def get_overview():
     try:
         report = get_combined_report()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate report: {e}")
+        raise HTTPException(status_code=500,
+                            detail=f"Failed to generate report: {e}")
 
     total_skus = len(report)
-    needs_action_df = report[report["stock_status"].isin(["LOW_STOCK", "OUT_OF_STOCK"])]
+    needs_action_df = report[report["stock_status"].isin(
+        ["LOW_STOCK", "OUT_OF_STOCK"])]
     needs_action_count = len(needs_action_df)
-    critical_count = len(needs_action_df[needs_action_df["stock_status"] == "OUT_OF_STOCK"])
+    critical_count = len(
+        needs_action_df[needs_action_df["stock_status"] == "OUT_OF_STOCK"])
     low_stock_count = needs_action_count - critical_count
 
-    avg_velocity = round(report["avg_daily_sales"].mean(), 2) if total_skus > 0 else 0.0
+    avg_velocity = round(
+        report["avg_daily_sales"].mean(),
+        2) if total_skus > 0 else 0.0
 
     snapshot = []
     alerts = []
     for _, row in needs_action_df.head(5).iterrows():
-        days_left = 0.0 if row["days_of_stock_left"] == np.inf else float(row["days_of_stock_left"])
+        days_left = 0.0 if row["days_of_stock_left"] == np.inf else float(
+            row["days_of_stock_left"])
         item = {
             "sku": f"PRD-{row['product_id']:04d}",
             "product": row["product_name"],
@@ -290,7 +344,7 @@ def get_overview():
             "status": "OUT OF STOCK" if row["stock_status"] == "OUT_OF_STOCK" else "LOW STOCK"
         }
         snapshot.append(item)
-        
+
         alerts.append({
             "sku": item["sku"],
             "product": item["product"],
@@ -317,8 +371,13 @@ def get_overview():
 
     trend_list = []
     if not sales_df.empty:
-        sales_df["category"] = sales_df["product_name"].apply(get_product_category)
-        pivot = sales_df.pivot_table(index="date", columns="category", values="volume", aggfunc="sum").fillna(0)
+        sales_df["category"] = sales_df["product_name"].apply(
+            get_product_category)
+        pivot = sales_df.pivot_table(
+            index="date",
+            columns="category",
+            values="volume",
+            aggfunc="sum").fillna(0)
         pivot = pivot.tail(7)
         for date_val, row_data in pivot.iterrows():
             dt = pd.to_datetime(date_val)
@@ -359,12 +418,15 @@ def get_inventory_report():
     try:
         report = get_combined_report()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate report: {e}")
+        raise HTTPException(status_code=500,
+                            detail=f"Failed to generate report: {e}")
 
     inventory_list = []
     for _, row in report.iterrows():
-        days_left = 99.0 if row["days_of_stock_left"] == np.inf else float(row["days_of_stock_left"])
-        status = "OUT OF STOCK" if row["stock_status"] == "OUT_OF_STOCK" else ("LOW STOCK" if row["stock_status"] == "LOW_STOCK" else "HEALTHY")
+        days_left = 99.0 if row["days_of_stock_left"] == np.inf else float(
+            row["days_of_stock_left"])
+        status = "OUT OF STOCK" if row["stock_status"] == "OUT_OF_STOCK" else (
+            "LOW STOCK" if row["stock_status"] == "LOW_STOCK" else "HEALTHY")
         inventory_list.append({
             "sku": f"PRD-{row['product_id']:04d}",
             "product": row["product_name"],
@@ -382,12 +444,14 @@ def get_demand_report():
     try:
         report = get_combined_report()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate report: {e}")
+        raise HTTPException(status_code=500,
+                            detail=f"Failed to generate report: {e}")
 
     top_df = report.sort_values("avg_daily_sales", ascending=False).head(6)
     top_velocity_skus = []
     for _, row in top_df.iterrows():
-        days_left = 99.0 if row["days_of_stock_left"] == np.inf else float(row["days_of_stock_left"])
+        days_left = 99.0 if row["days_of_stock_left"] == np.inf else float(
+            row["days_of_stock_left"])
         top_velocity_skus.append({
             "sku": f"PRD-{row['product_id']:04d}",
             "product": row["product_name"],
@@ -411,13 +475,18 @@ def get_demand_report():
     trend_list = []
     daily_volume_by_category = []
     if not sales_df.empty:
-        sales_df["category"] = sales_df["product_name"].apply(get_product_category)
-        pivot = sales_df.pivot_table(index="date", columns="category", values="volume", aggfunc="sum").fillna(0)
+        sales_df["category"] = sales_df["product_name"].apply(
+            get_product_category)
+        pivot = sales_df.pivot_table(
+            index="date",
+            columns="category",
+            values="volume",
+            aggfunc="sum").fillna(0)
         pivot = pivot.tail(7)
         for date_val, row_data in pivot.iterrows():
             dt = pd.to_datetime(date_val)
             formatted_date = dt.strftime("%b %d")
-            
+
             d_item = {"date": formatted_date}
             for col in pivot.columns:
                 d_item[col] = int(row_data[col])
@@ -440,7 +509,8 @@ def get_suppliers_report():
     try:
         report = get_combined_report()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate report: {e}")
+        raise HTTPException(status_code=500,
+                            detail=f"Failed to generate report: {e}")
 
     from src.services.analytics.inventory_advance import build_supplier_scorecard
     scorecard = build_supplier_scorecard(report)
@@ -451,7 +521,7 @@ def get_suppliers_report():
         reliability = 85 + (hash(sup_id) % 15)
         pending_orders = hash(sup_id) % 3
         mtd_spend = 1000 + (hash(sup_id) % 10) * 1500
-        
+
         suppliers_list.append({
             "name": sup_id,
             "reliability": reliability,
@@ -474,19 +544,21 @@ def trigger_replenish(request: Optional[ReplenishRequest] = None):
         return _PROPOSAL_CACHE
 
     from src.services.agentic_ai.graph import graph
-    
+
     try:
         report = get_combined_report()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load inventory state: {e}")
-        
-    needs_action_df = report[report["stock_status"].isin(["LOW_STOCK", "OUT_OF_STOCK"])]
+        raise HTTPException(status_code=500,
+                            detail=f"Failed to load inventory state: {e}")
+
+    needs_action_df = report[report["stock_status"].isin(
+        ["LOW_STOCK", "OUT_OF_STOCK"])]
     needs_action_df = needs_action_df.sort_values("days_of_stock_left")
-    
+
     critical_items = needs_action_df.head(5)
     recommendations = []
     policies_retrieved = []
-    
+
     def run_agent_for_product(product_name):
         init_state = {
             "message": [product_name],
@@ -504,18 +576,19 @@ def trigger_replenish(request: Optional[ReplenishRequest] = None):
             return {"error": str(err)}
 
     product_names = critical_items["product_name"].tolist()
-    
+
     with concurrent.futures.ThreadPoolExecutor() as executor:
         results = list(executor.map(run_agent_for_product, product_names))
-        
-    for idx, (res, (_, row)) in enumerate(zip(results, critical_items.iterrows())):
+
+    for idx, (res, (_, row)) in enumerate(
+            zip(results, critical_items.iterrows())):
         current_stock = int(row["current_stock"])
         reorder_point = float(row["reorder_point"])
         order_qty = max(20, int(np.ceil(reorder_point - current_stock)))
         order_qty = int(np.ceil(order_qty / 10.0) * 10)
-        
+
         sku = f"PRD-{row['product_id']:04d}"
-        
+
         # Determine if we need fallback
         error_msg = res.get("error") if isinstance(res, dict) else None
         if error_msg or not res or "recommendation" not in res:
@@ -524,22 +597,28 @@ def trigger_replenish(request: Optional[ReplenishRequest] = None):
             if not policy or policy == "No policy found." or policy == "N/A":
                 try:
                     from src.services.rag_policy.search import search_policy
-                    policy = search_policy(f"What is the company policy for {row['product_name']} when risk is High?")
+                    policy = search_policy(
+                        f"What is the company policy for {
+                            row['product_name']} when risk is High?")
                 except Exception:
-                    policy = f"Safety Stock Policy §4.2 rule triggered for {row['product_name']} under stock risk state."
-            
-            reason = f"Replenishment triggered by critical stock level ({current_stock} units left). Reorder point is {reorder_point:.1f} units. Lead time is {int(row['avg_lead_time_day'])} days. Policy Applied: {policy}"
+                    policy = f"Safety Stock Policy §4.2 rule triggered for {
+                        row['product_name']} under stock risk state."
+
+            reason = f"Replenishment triggered by critical stock level ({current_stock} units left). Reorder point is {
+                reorder_point:.1f} units. Lead time is {
+                int(
+                    row['avg_lead_time_day'])} days. Policy Applied: {policy}"
         else:
             inventory = res.get("inventory", {})
             policy = res.get("policy", "N/A")
             rec_text = res.get("recommendation", "")
-            
+
             reason = "Replenishment recommended per company policy."
             if "Reason:" in rec_text:
                 parts = rec_text.split("Reason:")
                 if len(parts) > 1:
                     reason = parts[1].strip()
-                    
+
         recommendations.append({
             "id": idx + 1,
             "sku": sku,
@@ -551,20 +630,23 @@ def trigger_replenish(request: Optional[ReplenishRequest] = None):
             "lead_time_days": int(row["avg_lead_time_day"]),
             "approved": True
         })
-        
+
         if policy and policy != "N/A" and policy != "No policy found.":
             policies_retrieved.append(policy)
 
     timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M UTC")
     policy_context_summary = "Policy RAG analysis complete: " + (
-        " ".join(list(set(policies_retrieved))[:2]) if policies_retrieved else "Standard safety stock thresholds applied."
-    )
-    
-    total_cost = sum(item["units"] * float(critical_items[critical_items["product_name"] == item["product"]]["cost_price"].values[0]) for item in recommendations)
-    
+        " ".join(
+            list(
+                set(policies_retrieved))[
+                :2]) if policies_retrieved else "Standard safety stock thresholds applied.")
+
+    total_cost = sum(item["units"] * float(critical_items[critical_items["product_name"]
+                     == item["product"]]["cost_price"].values[0]) for item in recommendations)
+
     exec_report = f"""### 📋 Dynamic Procurement Execution Audit
 
-**Status:** Ready for Approval | **Audit Code:** AUD-REP-{datetime.now().strftime('%Y%m%d')}  
+**Status:** Ready for Approval | **Audit Code:** AUD-REP-{datetime.now().strftime('%Y%m%d')}
 **Trigger Source:** API Replenishment Run | **Target Facility:** Distribution Center
 
 ---
@@ -590,12 +672,22 @@ def trigger_replenish(request: Optional[ReplenishRequest] = None):
 4. **DECISION MATURATION:** Gemini LLM generated reasoning logs.
 """
 
-    cognitive_log = [
-        {"step": 1, "node": "check_inventory", "status": "COMPLETED", "message": f"Scanned active SKUs. Found {len(recommendations)} items below reorder thresholds."},
-        {"step": 2, "node": "evaluate_demand_surges", "status": "COMPLETED", "message": "Calculated daily average velocity for at-risk items."},
-        {"step": 3, "node": "consult_policy_rag", "status": "COMPLETED", "message": f"ChromaDB similarity search retrieved policies for risk states."},
-        {"step": 4, "node": "generate_proposal", "status": "COMPLETED", "message": "Replenishment proposals generated via Gemini LLM."}
-    ]
+    cognitive_log = [{"step": 1,
+                      "node": "check_inventory",
+                      "status": "COMPLETED",
+                      "message": f"Scanned active SKUs. Found {len(recommendations)} items below reorder thresholds."},
+                     {"step": 2,
+                      "node": "evaluate_demand_surges",
+                      "status": "COMPLETED",
+                      "message": "Calculated daily average velocity for at-risk items."},
+                     {"step": 3,
+                      "node": "consult_policy_rag",
+                      "status": "COMPLETED",
+                      "message": f"ChromaDB similarity search retrieved policies for risk states."},
+                     {"step": 4,
+                      "node": "generate_proposal",
+                      "status": "COMPLETED",
+                      "message": "Replenishment proposals generated via Gemini LLM."}]
 
     result_payload = {
         "timestamp": timestamp_str,
