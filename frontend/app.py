@@ -39,6 +39,13 @@ if "inventory_db" not in st.session_state and inventory_data:
 if "proposal_db" not in st.session_state and agent_proposal:
     st.session_state.proposal_db = agent_proposal["recommendations"]
 
+# Dynamic badge: count items needing attention from live inventory
+if "inventory_db" in st.session_state:
+    _badge_df = st.session_state.inventory_db
+    inventory_badge_count = int(len(_badge_df[_badge_df["status"].isin(["CRITICAL", "LOW STOCK", "OUT OF STOCK"])]))
+else:
+    inventory_badge_count = len([x for x in inventory_data if x.get("status") in ["CRITICAL", "LOW STOCK", "OUT OF STOCK"]]) if inventory_data else 0
+
 # 3. HTML & CSS Render Helpers
 def render_progress_bar(days_left):
     max_days = 14.0
@@ -569,7 +576,7 @@ with st.sidebar:
                 <span class="nav-icon">📦</span>
                 <span>Inventory</span>
             </div>
-            <span class="badge">5</span>
+            <span class="badge">{inventory_badge_count}</span>
         </a>
         <a href="?page=Demand" target="_self" class="nav-item {"active" if selected_page == "Demand" else ""}">
             <div class="nav-link">
@@ -880,22 +887,162 @@ elif selected_page == "Inventory":
     if selected_stat != "All Statuses":
         df_filtered = df_filtered[df_filtered["status"] == selected_stat]
         
-    # Render Table
-    n_rows = len(df_filtered)
-    components.html(render_table(df_filtered, is_snapshot=False), height=68 + n_rows * 58, scrolling=n_rows > 10)
-    
-    # Mock Pagination
+    # Render Table Header (Grid Layout matching original UI exactly)
+    st.markdown("""
+    <div style="display: grid; grid-template-columns: 1.15fr 2fr 0.7fr 1.4fr 1.5fr 1.2fr 0.4fr; 
+                background-color: #F8FAFC; border: 1px solid #E4EDF5; border-radius: 12px 12px 0 0; 
+                font-weight: 600; color: #5B7A9C; font-size: 13px; align-items: center; min-height: 48px;">
+        <span style="padding: 12px 16px;">SKU</span>
+        <span style="padding: 12px 16px;">Product</span>
+        <span style="padding: 12px 16px;">Stock</span>
+        <span style="padding: 12px 16px;">Days Left</span>
+        <span style="padding: 12px 16px;">Supplier</span>
+        <span style="padding: 12px 16px;">Status</span>
+        <span style="padding: 12px 16px; text-align: center;">Actions</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Render Table Rows dynamically
+    for _ri, _row in df_filtered.reset_index(drop=True).iterrows():
+        _sku = _row['sku']
+        _product = _row['product']
+        _stock = int(_row['stock'])
+        _days_left = float(_row['days_left'])
+        _supplier = _row['supplier']
+        _status = _row['status']
+        _category = _row['category']
+
+        _max_days = 14.0
+        _pct = min(100.0, (_days_left / _max_days) * 100.0) if _days_left > 0 else 0.0
+        _stock_color = "#EF4444" if _stock == 0 else "#1C3D5A"
+
+        # Days Left bar colour & text
+        if _days_left == 0:       _bc, _dc = "#E2E8F0", "#E63946"
+        elif _days_left <= 2.0:   _bc, _dc = "#E63946", "#E63946"
+        elif _days_left <= 5.0:   _bc, _dc = "#F39C12", "#F39C12"
+        else:                      _bc, _dc = "#2ECC71", "#2ECC71"
+
+        # Status badge colours
+        _su = _status.upper()
+        if _su in ["CRITICAL", "URGENT ORDER"]:  _sbg, _sfg = "#FEE2E2", "#EF4444"
+        elif _su == "LOW STOCK":                  _sbg, _sfg = "#FEF3C7", "#D97706"
+        elif _su == "HEALTHY":                    _sbg, _sfg = "#D1FAE5", "#10B981"
+        elif _su == "OUT OF STOCK":               _sbg, _sfg = "#F3F4F6", "#EF4444"
+        else:                                      _sbg, _sfg = "#E0F2FE", "#0369A1"
+
+        _flagged  = st.session_state.get(f"_flag_{_sku}", False)
+        _row_bg   = "#FFF7ED" if _flagged else ("#FFFFFF" if _ri % 2 == 0 else "#F8FAFC")
+        _flag_border = "border-left:3px solid #F59E0B;" if _flagged else "border-left:3px solid transparent;"
+
+        _c_data, _c_btn = st.columns([12, 1], gap="small")
+
+        with _c_data:
+            st.markdown(f"""
+            <div style="display:grid; grid-template-columns:1.1fr 2fr 0.7fr 1.4fr 1.5fr 1.2fr;
+                         background-color:{_row_bg}; border-bottom:1px solid #E4EDF5;
+                         {_flag_border} align-items:center; min-height:54px;">
+                <span style="padding:12px 16px; font-family:monospace; font-size:13px;
+                              font-weight:500; color:#1C3D5A;">{_sku}</span>
+                <span style="padding:12px 16px; font-weight:600; color:#1C3D5A;">
+                    {_product}{'&nbsp;🚩' if _flagged else ''}
+                </span>
+                <span style="padding:12px 16px; font-weight:700; color:{_stock_color};">{_stock}</span>
+                <span style="padding:12px 16px;">
+                    <span style="display:inline-flex; align-items:center; gap:8px;">
+                        <span style="display:inline-block; background:#E2E8F0; width:50px; height:6px;
+                                      border-radius:3px; overflow:hidden; vertical-align:middle;">
+                            <span style="display:block; background:{_bc}; width:{_pct}%; height:100%;"></span>
+                        </span>
+                        <span style="color:{_dc}; font-weight:600; font-size:13px;">{_days_left}d</span>
+                    </span>
+                </span>
+                <span style="padding:12px 16px; color:#4A607A;">{_supplier}</span>
+                <span style="padding:12px 16px;">
+                    <span style="background:{_sbg}; color:{_sfg}; padding:3px 8px; border-radius:6px;
+                                  font-size:11px; font-weight:700; text-transform:uppercase;
+                                  border:1px solid {_sfg}20;">{_su}</span>
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with _c_btn:
+            with st.popover("⋮", use_container_width=True):
+                st.markdown(f"**{_product}**")
+                st.caption(f"`{_sku}` · {_category}")
+                st.divider()
+
+                # 👁 View / hide details
+                if st.button("👁  View Details", key=f"_vd_{_sku}", use_container_width=True):
+                    _k = f"_det_{_sku}"
+                    st.session_state[_k] = not st.session_state.get(_k, False)
+
+                # 📦 Request Restock → navigate to AI Agent page
+                if st.button("📦  Request Restock", key=f"_rr_{_sku}", use_container_width=True):
+                    st.query_params["page"] = "AI_Agent"
+                    st.toast(f"📦 Restock request raised for **{_product}**")
+                    st.rerun()
+
+                # 🚩 Flag / unflag
+                _fl_lbl = "✅  Remove Flag" if _flagged else "🚩  Flag Issue"
+                if st.button(_fl_lbl, key=f"_fl_{_sku}", use_container_width=True):
+                    st.session_state[f"_flag_{_sku}"] = not _flagged
+                    st.toast(f"{'✅ Flag removed' if _flagged else '🚩 Flagged'}: {_product}")
+
+                # ✏️ Toggle inline stock editor
+                if st.button("✏️  Edit Stock", key=f"_ed_{_sku}", use_container_width=True):
+                    _ek = f"_edit_{_sku}"
+                    st.session_state[_ek] = not st.session_state.get(_ek, False)
+
+        # ── Expanded Detail Card ──────────────────────────────────────────────
+        if st.session_state.get(f"_det_{_sku}", False):
+            st.markdown(f"""
+            <div style="background:#EBF3FC; border:1px solid #BFE3F9; border-radius:0 0 8px 8px;
+                         padding:14px 20px; margin-bottom:4px; display:grid;
+                         grid-template-columns:repeat(5,1fr); gap:12px; font-size:12px;">
+                <div><span style="color:#5B7A9C;display:block;font-size:10px;text-transform:uppercase;font-weight:600;">SKU</span>
+                     <span style="font-weight:700;color:#1C3D5A;font-family:monospace;">{_sku}</span></div>
+                <div><span style="color:#5B7A9C;display:block;font-size:10px;text-transform:uppercase;font-weight:600;">Category</span>
+                     <span style="font-weight:700;color:#1C3D5A;">{_category}</span></div>
+                <div><span style="color:#5B7A9C;display:block;font-size:10px;text-transform:uppercase;font-weight:600;">Stock</span>
+                     <span style="font-weight:700;color:{_stock_color};">{_stock} units</span></div>
+                <div><span style="color:#5B7A9C;display:block;font-size:10px;text-transform:uppercase;font-weight:600;">Days Left</span>
+                     <span style="font-weight:700;color:{_dc};">{_days_left}d</span></div>
+                <div><span style="color:#5B7A9C;display:block;font-size:10px;text-transform:uppercase;font-weight:600;">Supplier</span>
+                     <span style="font-weight:700;color:#1C3D5A;">{_supplier}</span></div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # ── Inline Stock Edit Form ────────────────────────────────────────────
+        if st.session_state.get(f"_edit_{_sku}", False):
+            _ec1, _ec2, _ec3 = st.columns([3, 1, 0.8])
+            with _ec1:
+                _new_stock = st.number_input(
+                    f"Update stock for {_product}",
+                    min_value=0, value=_stock, step=1,
+                    key=f"_nsi_{_sku}", label_visibility="collapsed"
+                )
+            with _ec2:
+                if st.button("💾 Save", key=f"_sv_{_sku}", use_container_width=True):
+                    _df = st.session_state.inventory_db
+                    _df.loc[_df['sku'] == _sku, 'stock'] = _new_stock
+                    if _new_stock == 0:       _ns = "OUT OF STOCK"
+                    elif _new_stock <= 15:    _ns = "CRITICAL"
+                    elif _new_stock <= 50:    _ns = "LOW STOCK"
+                    else:                      _ns = "HEALTHY"
+                    _df.loc[_df['sku'] == _sku, 'status'] = _ns
+                    del st.session_state[f"_edit_{_sku}"]
+                    st.toast(f"✅ {_product} updated → {_new_stock} units ({_ns})", icon="📦")
+                    st.rerun()
+            with _ec3:
+                if st.button("✕ Cancel", key=f"_cv_{_sku}", use_container_width=True):
+                    del st.session_state[f"_edit_{_sku}"]
+                    st.rerun()
+
+    # Results summary
     st.markdown(f"""
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; font-size: 13px; color: #5B7A9C; padding: 0 10px;">
-        <div>Showing 1 to {len(df_filtered)} of {len(df_filtered)} results</div>
-        <div style="display: flex; gap: 6px; align-items: center;">
-            <span style="background-color: #BFE3F9; color: #1C3D5A; padding: 4px 10px; border-radius: 4px; font-weight: 700; cursor: pointer;">1</span>
-            <span style="background-color: #FFFFFF; border: 1px solid #E4EDF5; color: #4A607A; padding: 4px 10px; border-radius: 4px; cursor: pointer;">2</span>
-            <span style="background-color: #FFFFFF; border: 1px solid #E4EDF5; color: #4A607A; padding: 4px 10px; border-radius: 4px; cursor: pointer;">3</span>
-            <span>...</span>
-            <span style="background-color: #FFFFFF; border: 1px solid #E4EDF5; color: #4A607A; padding: 4px 10px; border-radius: 4px; cursor: pointer;">36</span>
-            <span style="background-color: #FFFFFF; border: 1px solid #E4EDF5; color: #4A607A; padding: 4px 8px; border-radius: 4px; cursor: pointer;">&gt;</span>
-        </div>
+    <div style="margin-top:10px; font-size:13px; color:#5B7A9C; padding:0 4px;">
+        Showing <strong style="color:#1C3D5A;">{len(df_filtered)}</strong>
+        of <strong style="color:#1C3D5A;">{len(df_inv)}</strong> inventory items
     </div>
     """, unsafe_allow_html=True)
 
@@ -1216,107 +1363,165 @@ elif selected_page == "AI_Agent":
     tab_orders, tab_report = st.tabs(["📋 Actionable Recommendations", "🧠 AI Executive Report & Reasoning"])
     
     with tab_orders:
+        # ── Compute pending items (not yet actioned) ──────────────────────────
+        pending_recs = [
+            item for item in recs
+            if f"approved_{item['sku']}" not in st.session_state
+            and f"rejected_{item['sku']}" not in st.session_state
+        ]
+        approved_count = sum(1 for item in recs if st.session_state.get(f"approved_{item['sku']}", False))
+        rejected_count = sum(1 for item in recs if st.session_state.get(f"rejected_{item['sku']}", False))
+        total_actioned = approved_count + rejected_count
+
         # Recommendations Header & Action Button
         col_hdr_recs, col_hdr_btn = st.columns([3, 1])
         with col_hdr_recs:
             st.markdown(f"""
-            <div style="font-weight: 700; color: #1C3D5A; font-size: 16px; margin-bottom: 12px; margin-top: 4px;">Recommended Orders ({len(recs)} items)</div>
+            <div style="font-weight: 700; color: #1C3D5A; font-size: 16px; margin-bottom: 12px; margin-top: 4px;">
+                Recommended Orders
+                <span style="font-weight: 500; color: #5B7A9C; font-size: 13px; margin-left: 8px;">
+                    {len(pending_recs)} pending · {approved_count} approved · {rejected_count} rejected
+                </span>
+            </div>
             """, unsafe_allow_html=True)
         with col_hdr_btn:
-            # Action button to approve all remaining orders
-            if st.button("📥 APPROVE ALL ORDERS", key="approve_all", use_container_width=True):
-                for item in recs:
-                    st.session_state[f"approved_{item['sku']}"] = True
-                st.toast("✅ Approved all recommended orders!", icon="📦")
-                st.rerun()
-                
-        st.write("")
-        
-        # Render recommended orders list
-        for idx, item in enumerate(recs):
-            is_approved = st.session_state.get(f"approved_{item['sku']}", item["approved"])
-            is_urgent = item["urgency"] == "URGENT ORDER"
-            
-            # Color coding state matching
-            card_bg = "#FFFFFF" if is_approved else "#F8FAFC"
-            card_opacity = "1.0" if is_approved else "0.55"
-            border_color = ("#EF4444" if is_urgent else "#F59E0B") if is_approved else "#94A3B8"
-            badge_bg = ("#FEE2E2" if is_urgent else "#FEF3C7") if is_approved else "#E2E8F0"
-            badge_fg = ("#EF4444" if is_urgent else "#D97706") if is_approved else "#64748B"
-            urg_text = item["urgency"] if is_approved else "REJECTED"
-            
-            # Render item columns
-            col_desc, col_units, col_vendor, col_action_btns = st.columns([5.5, 1.5, 2, 1.5])
-            
-            with col_desc:
-                st.markdown(f"""
-                <div style="border-left: 4px solid {border_color}; background-color: {card_bg}; opacity: {card_opacity}; border-top: 1px solid #E4EDF5; border-right: 1px solid #E4EDF5; border-bottom: 1px solid #E4EDF5; border-radius: 0 8px 8px 0; padding: 14px 16px; min-height: 85px; display: flex; flex-direction: column; justify-content: center;">
-                    <div>
-                        <span style="background-color: {badge_bg}; color: {badge_fg}; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-right: 8px; text-transform: uppercase; display: inline-block; vertical-align: middle;">{urg_text}</span>
-                        <span style="font-weight: 700; color: #1C3D5A; font-size: 15px; vertical-align: middle;">{item["product"]}</span>
-                        <span style="color: #8CA0B8; font-size: 11px; margin-left: 6px; vertical-align: middle; font-family: monospace;">{item["sku"]}</span>
-                    </div>
-                    <div style="font-size: 12.5px; color: #5B7A9C; line-height: 1.4; margin-top: 5px;">{item["reason"]}</div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-            with col_units:
-                st.markdown(f"""
-                <div style="background-color: {card_bg}; opacity: {card_opacity}; border-top: 1px solid #E4EDF5; border-bottom: 1px solid #E4EDF5; padding: 14px 10px; min-height: 85px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
-                    <div style="font-size: 18px; font-weight: 700; color: #1C3D5A;">{item["units"]}</div>
-                    <div style="font-size: 11px; color: #5B7A9C;">units</div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-            with col_vendor:
-                st.markdown(f"""
-                <div style="background-color: {card_bg}; opacity: {card_opacity}; border-top: 1px solid #E4EDF5; border-bottom: 1px solid #E4EDF5; padding: 14px 10px; min-height: 85px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
-                    <div style="font-weight: 600; color: #1C3D5A; font-size: 13px; line-height: 1.2;">{item["supplier"]}</div>
-                    <div style="font-size: 11px; color: #5B7A9C; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
-                        <span>🕒</span> {item["lead_time_days"]} days
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-            with col_action_btns:
-                # Interactive action buttons
-                st.markdown(f"""
-                <style>
-                .btn-holder-{idx} {{
-                    background-color: {card_bg};
-                    border-top: 1px solid #E4EDF5;
-                    border-bottom: 1px solid #E4EDF5;
-                    border-right: 1px solid #E4EDF5;
-                    border-radius: 0 8px 8px 0;
-                    min-height: 85px;
-                    padding: 10px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 6px;
-                }}
-                </style>
-                <div class="btn-holder-{idx}">
-                """, unsafe_allow_html=True)
-                
-                sub_b1, sub_b2 = st.columns(2)
-                with sub_b1:
-                    # Approve check button
-                    if st.button("✓", key=f"app_check_{item['sku']}", use_container_width=True, help="Approve Order"):
-                        st.session_state.proposal_db[idx]["approved"] = True
+            if pending_recs:  # Only show button when there are still pending items
+                if st.button("📥 APPROVE ALL ORDERS", key="approve_all", use_container_width=True):
+                    for item in pending_recs:
                         st.session_state[f"approved_{item['sku']}"] = True
-                        st.toast(f"✅ Approved: {item['product']}")
+                    st.toast(f"✅ Approved all {len(pending_recs)} orders!", icon="📦")
+                    st.rerun()
+
+        st.write("")
+
+        # ── All orders processed → show success banner ────────────────────────
+        if not pending_recs:
+            if total_actioned > 0:
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #D1FAE5 0%, #ECFDF5 100%);
+                             border: 1px solid #10B98130; border-radius: 16px; padding: 40px 32px;
+                             text-align: center; margin: 20px 0;">
+                    <div style="font-size: 52px; margin-bottom: 16px;">🎉</div>
+                    <div style="font-weight: 700; font-size: 22px; color: #065F46; margin-bottom: 8px;">
+                        All Orders Processed!
+                    </div>
+                    <div style="font-size: 14px; color: #047857; margin-bottom: 20px;">
+                        <strong>{approved_count}</strong> order{'s' if approved_count != 1 else ''} approved
+                        {'· <strong>' + str(rejected_count) + '</strong> rejected' if rejected_count else ''}
+                        — inventory replenishment has been dispatched to suppliers.
+                    </div>
+                    <div style="display: inline-flex; align-items: center; gap: 10px;
+                                background: #10B981; color: white; padding: 10px 24px;
+                                border-radius: 8px; font-weight: 600; font-size: 13px;">
+                        ✅ Replenishment Orders Submitted
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Option to reset and run again
+                col_reset = st.columns([2, 1, 2])[1]
+                with col_reset:
+                    if st.button("🔄 Start New Cycle", key="reset_proposals", use_container_width=True):
+                        # Clear all approval/rejection states
+                        keys_to_delete = [k for k in st.session_state if k.startswith(("approved_", "rejected_"))]
+                        for k in keys_to_delete:
+                            del st.session_state[k]
                         st.rerun()
-                with sub_b2:
-                    # Reject cross button
-                    if st.button("✗", key=f"rej_cross_{item['sku']}", use_container_width=True, help="Reject Order"):
-                        st.session_state.proposal_db[idx]["approved"] = False
-                        st.session_state[f"approved_{item['sku']}"] = False
-                        st.toast(f"❌ Rejected: {item['product']}")
-                        st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-            st.write("")
+            else:
+                st.info("No recommendations available. Run the AI agent to generate proposals.")
+        else:
+            # ── Render only pending items ─────────────────────────────────────
+            for idx, item in enumerate(pending_recs):
+                is_urgent = item["urgency"] == "URGENT ORDER"
+
+                border_color = "#EF4444" if is_urgent else "#F59E0B"
+                badge_bg = "#FEE2E2" if is_urgent else "#FEF3C7"
+                badge_fg = "#EF4444" if is_urgent else "#D97706"
+
+                # Render item columns
+                col_desc, col_units, col_vendor, col_action_btns = st.columns([5.5, 1.5, 2, 1.5])
+
+                with col_desc:
+                    st.markdown(f"""
+                    <div style="border-left: 4px solid {border_color}; background-color: #FFFFFF;
+                                 border-top: 1px solid #E4EDF5; border-right: 1px solid #E4EDF5;
+                                 border-bottom: 1px solid #E4EDF5; border-radius: 0 8px 8px 0;
+                                 padding: 14px 16px; min-height: 85px; display: flex;
+                                 flex-direction: column; justify-content: center;">
+                        <div>
+                            <span style="background-color: {badge_bg}; color: {badge_fg}; font-size: 9px;
+                                          font-weight: 700; padding: 2px 6px; border-radius: 4px;
+                                          margin-right: 8px; text-transform: uppercase;
+                                          display: inline-block; vertical-align: middle;">{item['urgency']}</span>
+                            <span style="font-weight: 700; color: #1C3D5A; font-size: 15px;
+                                          vertical-align: middle;">{item['product']}</span>
+                            <span style="color: #8CA0B8; font-size: 11px; margin-left: 6px;
+                                          vertical-align: middle; font-family: monospace;">{item['sku']}</span>
+                        </div>
+                        <div style="font-size: 12.5px; color: #5B7A9C; line-height: 1.4;
+                                     margin-top: 5px;">{item['reason']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col_units:
+                    st.markdown(f"""
+                    <div style="background-color: #FFFFFF; border-top: 1px solid #E4EDF5;
+                                 border-bottom: 1px solid #E4EDF5; padding: 14px 10px;
+                                 min-height: 85px; display: flex; flex-direction: column;
+                                 align-items: center; justify-content: center; text-align: center;">
+                        <div style="font-size: 18px; font-weight: 700; color: #1C3D5A;">{item['units']}</div>
+                        <div style="font-size: 11px; color: #5B7A9C;">units</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col_vendor:
+                    st.markdown(f"""
+                    <div style="background-color: #FFFFFF; border-top: 1px solid #E4EDF5;
+                                 border-bottom: 1px solid #E4EDF5; padding: 14px 10px;
+                                 min-height: 85px; display: flex; flex-direction: column;
+                                 align-items: flex-start; justify-content: center;">
+                        <div style="font-weight: 600; color: #1C3D5A; font-size: 13px;">{item['supplier']}</div>
+                        <div style="font-size: 11px; color: #5B7A9C; margin-top: 4px;
+                                     display: flex; align-items: center; gap: 4px;">
+                            <span>🕒</span> {item['lead_time_days']} days
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col_action_btns:
+                    st.markdown(f"""
+                    <style>
+                    .btn-holder-{idx} {{
+                        background-color: #FFFFFF;
+                        border-top: 1px solid #E4EDF5;
+                        border-bottom: 1px solid #E4EDF5;
+                        border-right: 1px solid #E4EDF5;
+                        border-radius: 0 8px 8px 0;
+                        min-height: 85px;
+                        padding: 10px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 6px;
+                    }}
+                    </style>
+                    <div class="btn-holder-{idx}">
+                    """, unsafe_allow_html=True)
+
+                    sub_b1, sub_b2 = st.columns(2)
+                    with sub_b1:
+                        if st.button("✓", key=f"app_check_{item['sku']}", use_container_width=True, help="Approve Order"):
+                            st.session_state[f"approved_{item['sku']}"] = True
+                            st.toast(f"✅ Approved: {item['product']}")
+                            st.rerun()
+                    with sub_b2:
+                        if st.button("✗", key=f"rej_cross_{item['sku']}", use_container_width=True, help="Reject Order"):
+                            st.session_state[f"rejected_{item['sku']}"] = True
+                            st.toast(f"❌ Rejected: {item['product']}")
+                            st.rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+                st.write("")
             
     with tab_report:
         col_report_left, col_report_right = st.columns([1.8, 1.2])
