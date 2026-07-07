@@ -10,7 +10,7 @@ if project_root not in sys.path:
 
 
 from langchain_core.messages import HumanMessage
-from src.services.agentic_ai.graph import graph
+from graph import graph
 
 def main():
     print('Autonomous AI inventory')
