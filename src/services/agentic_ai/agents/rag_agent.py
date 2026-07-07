@@ -12,7 +12,7 @@ def rag_agent(state: State):
 
     all_dates = state.get("all_dates_inventory", [])
 
-    # Retrieve policy for the latest record or general state
+
     if all_dates:
         # Retrieve policy exactly once for the latest record
         latest = all_dates[-1]

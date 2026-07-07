@@ -67,18 +67,21 @@ def profile_rag():
     print_header("2. Chroma Vector DB (RAG) Latency Profile")
     query = "What is the policy for safety stock when risk is High?"
 
-    # First similarity search (may load model if not cached in process)
-    t0 = time.time()
-    policy_1 = search_policy(query)
-    rag_1_time = (time.time() - t0) * 1000
-    print(f"[*] Vector Similarity Search (First load): {rag_1_time:.2f} ms")
+    try:
+        # First similarity search (may load model if not cached in process)
+        t0 = time.time()
+        policy_1 = search_policy(query)
+        rag_1_time = (time.time() - t0) * 1000
+        print(f"[*] Vector Similarity Search (First load): {rag_1_time:.2f} ms")
 
-    # Second similarity search (uses memory cache)
-    t0 = time.time()
-    policy_2 = search_policy(query)
-    rag_2_time = (time.time() - t0) * 1000
-    print(f"[*] Vector Similarity Search (Cached): {rag_2_time:.2f} ms")
-    print(f"[i] Retrieved Policy Snippet: '{policy_2[:60]}...'")
+        # Second similarity search (uses memory cache)
+        t0 = time.time()
+        policy_2 = search_policy(query)
+        rag_2_time = (time.time() - t0) * 1000
+        print(f"[*] Vector Similarity Search (Cached): {rag_2_time:.2f} ms")
+        print(f"[i] Retrieved Policy Snippet: '{policy_2[:60]}...'")
+    except Exception as e:
+        print(f"[!] RAG Profiling failed (Probably missing or invalid GEMINI_API_KEY): {e}")
 
 
 def profile_agent_nodes():
@@ -94,35 +97,38 @@ def profile_agent_nodes():
         "error": None,
     }
 
-    # Node 1: Inventory Agent
-    t0 = time.time()
-    state = inventory_agent(state)
-    node1_time = (time.time() - t0) * 1000
-    print(f"[*] Node 1: inventory_agent: {node1_time:.2f} ms")
+    try:
+        # Node 1: Inventory Agent
+        t0 = time.time()
+        state = inventory_agent(state)
+        node1_time = (time.time() - t0) * 1000
+        print(f"[*] Node 1: inventory_agent: {node1_time:.2f} ms")
 
-    # Node 2: Demand Agent
-    t0 = time.time()
-    state = demand_agent(state)
-    node2_time = (time.time() - t0) * 1000
-    print(f"[*] Node 2: demand_agent: {node2_time:.2f} ms")
+        # Node 2: Demand Agent
+        t0 = time.time()
+        state = demand_agent(state)
+        node2_time = (time.time() - t0) * 1000
+        print(f"[*] Node 2: demand_agent: {node2_time:.2f} ms")
 
-    # Node 3: Risk Agent
-    t0 = time.time()
-    state = risk_analysis(state)
-    node3_time = (time.time() - t0) * 1000
-    print(f"[*] Node 3: risk_agent: {node3_time:.2f} ms")
+        # Node 3: Risk Agent
+        t0 = time.time()
+        state = risk_analysis(state)
+        node3_time = (time.time() - t0) * 1000
+        print(f"[*] Node 3: risk_agent: {node3_time:.2f} ms")
 
-    # Node 4: RAG Agent
-    t0 = time.time()
-    state = rag_agent(state)
-    node4_time = (time.time() - t0) * 1000
-    print(f"[*] Node 4: rag_agent: {node4_time:.2f} ms")
+        # Node 4: RAG Agent
+        t0 = time.time()
+        state = rag_agent(state)
+        node4_time = (time.time() - t0) * 1000
+        print(f"[*] Node 4: rag_agent: {node4_time:.2f} ms")
 
-    # Node 5: Recommendation Agent (LLM Call)
-    t0 = time.time()
-    state = recommendation_agent(state)
-    node5_time = (time.time() - t0) * 1000
-    print(f"[*] Node 5: recommendation_agent (LLM call/fallback): {node5_time:.2f} ms")
+        # Node 5: Recommendation Agent (LLM Call)
+        t0 = time.time()
+        state = recommendation_agent(state)
+        node5_time = (time.time() - t0) * 1000
+        print(f"[*] Node 5: recommendation_agent (LLM call/fallback): {node5_time:.2f} ms")
+    except Exception as e:
+        print(f"[!] Agent Node Profiling failed (Probably missing or invalid GEMINI_API_KEY): {e}")
 
 
 def profile_fastapi():
