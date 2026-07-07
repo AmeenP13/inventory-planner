@@ -25,3 +25,5 @@ python-dotenv
 # Vector DB & Embeddings
 chromadb
 sentence-transformers
+langchain-chroma
+langchain-huggingface

@@ -17,7 +17,22 @@ import concurrent.futures
 from . import database
 from .models import Product, Supplier, InventoryRecord, SalesRecord, InventoryUpdate, OrderApproval
 
-app = FastAPI(title="Inventory Replenishment Agent API")
+from contextlib import asynccontextmanager
+import threading
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Pre-loading Chroma vector database and HuggingFace embedding model...")
+    try:
+        from src.services.rag_policy.vector_db import get_vector_db
+        # Run in a background thread so the server finishes starting up immediately
+        t = threading.Thread(target=get_vector_db)
+        t.start()
+    except Exception as e:
+        print(f"Error pre-loading vector database: {e}")
+    yield
+
+app = FastAPI(title="Inventory Replenishment Agent API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,6 +40,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 @app.get("/")

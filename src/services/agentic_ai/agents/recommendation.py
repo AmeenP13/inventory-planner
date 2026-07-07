@@ -1,9 +1,5 @@
-try:
-    from ..config import llm
-    from ..state import State
-except ImportError:
-    from config import llm
-    from state import State
+from src.services.agentic_ai.config import llm
+from src.services.agentic_ai.state import State
 
 
 def recommendation_agent(state: State):

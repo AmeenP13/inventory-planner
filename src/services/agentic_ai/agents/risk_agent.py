@@ -1,7 +1,4 @@
-try:
-    from ..state import State
-except ImportError:
-    from state import State
+from src.services.agentic_ai.state import State
 
 
 def risk_analysis(state: State):

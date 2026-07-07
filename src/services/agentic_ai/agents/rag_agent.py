@@ -1,16 +1,5 @@
-try:
-    from ..state import State
-    from ...rag_policy.search import search_policy
-except (ImportError, ValueError):
-    from state import State
-    try:
-        from rag_policy.search import search_policy
-    except ImportError:
-        import os
-        import sys
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        sys.path.insert(0, project_root)
-        from rag_policy.search import search_policy
+from src.services.agentic_ai.state import State
+from src.services.rag_policy.search import search_policy
 
 
 def rag_agent(state: State):

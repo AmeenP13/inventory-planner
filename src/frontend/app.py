@@ -52,6 +52,17 @@ if "inventory_db" not in st.session_state and inventory_data:
 if "proposal_db" not in st.session_state and st.session_state.agent_proposal:
     st.session_state.proposal_db = st.session_state.agent_proposal["recommendations"]
 
+# Notify user of low stock alerts on initial load
+if "notified_low_stock" not in st.session_state:
+    alerts = overview_data.get("alerts", [])
+    if alerts:
+        critical_count = sum(1 for a in alerts if a.get("status") == "CRITICAL")
+        low_count = sum(1 for a in alerts if a.get("status") == "LOW STOCK")
+        msg = f"Alert: {critical_count} critical out-of-stock and {low_count} low-stock items detected!"
+        st.toast(msg, icon="🚨")
+    st.session_state.notified_low_stock = True
+
+
 # 3. HTML & CSS Render Helpers
 def render_progress_bar(days_left):
     max_days = 14.0
@@ -820,6 +831,7 @@ if selected_page == "Overview":
                     if st.button("Yes", key="alert_restock_yes", use_container_width=True):
                         st.toast("🤖 AI Replenishment process triggered!", icon="⚡")
                         st.query_params["page"] = "AI_Agent"
+                        st.query_params["run"] = "true"
                         st.rerun()
                 with btn_no:
                     if st.button("No", key="alert_restock_no", use_container_width=True):

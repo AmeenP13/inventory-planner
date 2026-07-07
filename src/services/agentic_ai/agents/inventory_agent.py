@@ -1,8 +1,5 @@
 from pathlib import Path
-try:
-    from ..state import State
-except ImportError:
-    from state import State
+from src.services.agentic_ai.state import State
 from datetime import datetime, timedelta
 from src.backend.database import get_connection
 

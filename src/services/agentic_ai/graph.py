@@ -1,11 +1,11 @@
-from .state import State
+from src.services.agentic_ai.state import State
 from langgraph.graph import StateGraph, START, END
 
-from .agents.demand_agent import demand_agent
-from .agents.inventory_agent import inventory_agent
-from .agents.rag_agent import rag_agent
-from .agents.recommendation import recommendation_agent
-from .agents.risk_agent import risk_analysis
+from src.services.agentic_ai.agents.demand_agent import demand_agent
+from src.services.agentic_ai.agents.inventory_agent import inventory_agent
+from src.services.agentic_ai.agents.rag_agent import rag_agent
+from src.services.agentic_ai.agents.recommendation import recommendation_agent
+from src.services.agentic_ai.agents.risk_agent import risk_analysis
 
 NODE_INVENTORY = "inventory"
 NODE_DEMAND = "demand"
