@@ -69,8 +69,6 @@ Reason:
 
     except Exception as e:
         state["error"] = f"LLM Error: {e}"
-        state["recommendation"] = (
-            f"Failed to generate recommendation.\nError: {e}"
-        )
+        state["recommendation"] = f"Failed to generate recommendation.\nError: {e}"
 
     return state

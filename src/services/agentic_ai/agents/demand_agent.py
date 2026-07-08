@@ -1,5 +1,5 @@
 from src.services.agentic_ai.state import State
-from src.services.analytics.inventory_core import prepare_dataframe, build_report
+from src.services.analytics.inventory_core import build_report, prepare_dataframe
 
 
 def demand_agent(state: State):
@@ -13,16 +13,13 @@ def demand_agent(state: State):
         state["error"] = "Inventory history not found."
         return state
 
-
     df = prepare_dataframe(inventory_history)
 
     report = build_report(df)
 
     product_name = state["inventory"]["product_name"].strip().lower()
 
-    product = report[
-        report["product_name"].astype(str).str.lower() == product_name
-    ]
+    product = report[report["product_name"].astype(str).str.lower() == product_name]
 
     if product.empty:
         state["error"] = f"{product_name} not found in preprocessing report."
@@ -35,7 +32,7 @@ def demand_agent(state: State):
         "reorder_point": float(row["reorder_point"]),
         "safety_stock": float(row["safety_stock"]),
         "days_of_stock_left": float(row["days_of_stock_left"]),
-        "stock_status": row["stock_status"]
+        "stock_status": row["stock_status"],
     }
 
     for record in inventory_history:
@@ -44,8 +41,6 @@ def demand_agent(state: State):
         record["safety_stock"] = state["demand"]["safety_stock"]
         record["days_of_stock_left"] = state["demand"]["days_of_stock_left"]
         record["stock_status"] = state["demand"]["stock_status"]
-
-
 
     next_day = state.get("next_day_inventory")
     if isinstance(next_day, dict):

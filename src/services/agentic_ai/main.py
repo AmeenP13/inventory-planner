@@ -1,6 +1,9 @@
 import os
 import sys
 
+from graph import graph
+from langchain_core.messages import HumanMessage
+
 project_root = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..")
 )
@@ -9,17 +12,14 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 
-from langchain_core.messages import HumanMessage
-from graph import graph
-
 def main():
-    print('Autonomous AI inventory')
-    
+    print("Autonomous AI inventory")
+
     while True:
-        user_input=input("\nEnter Product name (or Type Exit):").strip()
-        
-        if user_input.lower() in {'exit','bye','quit'}:
-            print('\nExiting browser')
+        user_input = input("\nEnter Product name (or Type Exit):").strip()
+
+        if user_input.lower() in {"exit", "bye", "quit"}:
+            print("\nExiting browser")
             break
         state = {
             "message": [HumanMessage(content=user_input)],
@@ -32,14 +32,14 @@ def main():
             "recommendation": "",
             "error": None,
         }
-        
-        result=graph.invoke(state)
-        
-        if result.get('error'):
-            print(f'\nError :{result['error']}')
+
+        result = graph.invoke(state)
+
+        if result.get("error"):
+            print(f"\nError :{result['error']}")
         else:
-            print(result['recommendation'])
-            
-if __name__=='__main__':
+            print(result["recommendation"])
+
+
+if __name__ == "__main__":
     main()
-        

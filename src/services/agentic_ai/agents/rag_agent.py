@@ -13,8 +13,7 @@ def rag_agent(state: State):
     risk = state.get("risk", "Low")
 
     query = (
-        f"What is the company policy for {product} "
-        f"when inventory risk is {risk}?"
+        f"What is the company policy for {product} " f"when inventory risk is {risk}?"
     )
 
     try:
