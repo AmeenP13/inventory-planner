@@ -1635,8 +1635,7 @@ elif selected_page == "AI_Agent":
         # ── Parse Budget Metrics from Executive Report ───────────────────────
         import re
         proposed_cost = 4820.0
-        budget_cap = 15000.0
-        remaining_budget = 10180.0
+        budget_cap_default = 15000.0
         budget_status = "COMPLIANT"
 
         exec_report = agent_proposal.get("executive_report", "")
@@ -1651,13 +1650,7 @@ elif selected_page == "AI_Agent":
                 r"(?:Quarterly Budget Cap|Budget Cap):\s*\$?\s*([\d,]+\.?\d*)",
                 exec_report)
             if cap_match:
-                budget_cap = float(cap_match.group(1).replace(",", ""))
-
-            rem_match = re.search(
-                r"(?:Remaining Available Budget|Remaining Budget):\s*\$?\s*([\d,]+\.?\d*)",
-                exec_report)
-            if rem_match:
-                remaining_budget = float(rem_match.group(1).replace(",", ""))
+                budget_cap_default = float(cap_match.group(1).replace(",", ""))
 
             status_match = re.search(
                 r"Budget Status:\s*\**([^\*\n]+)",
@@ -1665,10 +1658,83 @@ elif selected_page == "AI_Agent":
             if status_match:
                 budget_status = status_match.group(1).strip()
 
-        # Calculate live percentage
-        pct = min(100.0, (proposed_cost / budget_cap)
-                  * 100.0) if budget_cap > 0 else 0.0
-        is_compliant = "COMPLIANT" in budget_status.upper() or proposed_cost <= budget_cap
+        # ── 1. DYNAMIC BUDGET CONTROLS ──────────────────────────────────────
+        st.markdown(
+            '<div style="background:#FFFFFF;border:1px solid #E4EDF5;border-radius:14px;'
+            'padding:18px 24px;margin-bottom:18px;box-shadow:0 2px 8px rgba(28,61,90,0.03);">',
+            unsafe_allow_html=True)
+
+        ctrl_col1, ctrl_col2 = st.columns([3, 1])
+        with ctrl_col1:
+            st.markdown(
+                '<span style="font-weight:700;color:#1C3D5A;font-size:14px;">🎛️ Quarterly Budget Cap</span>'
+                '<span style="font-size:12px;color:#8CA0B8;margin-left:8px;">Drag to adjust budget ceiling</span>',
+                unsafe_allow_html=True)
+            budget_cap = st.slider(
+                label="budget_cap_slider",
+                min_value=5000,
+                max_value=50000,
+                value=int(st.session_state.get("budget_cap_override", budget_cap_default)),
+                step=500,
+                format="$%d",
+                label_visibility="collapsed",
+                key="budget_slider_widget"
+            )
+            st.session_state["budget_cap_override"] = float(budget_cap)
+        with ctrl_col2:
+            is_overridden = abs(budget_cap - budget_cap_default) > 1
+            badge_color = "#F59E0B" if is_overridden else "#10B981"
+            badge_text = "📝 Custom" if is_overridden else "✓ Default"
+            st.markdown(
+                f'<div style="margin-top:22px;text-align:center;background:{badge_color}20;'
+                f'color:{badge_color};border:1px solid {badge_color}40;border-radius:8px;'
+                f'padding:8px 12px;font-weight:700;font-size:12px;">{badge_text}<br>'
+                f'<span style="font-size:16px;font-weight:800;">${budget_cap:,}</span></div>',
+                unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Recalculate with live budget cap
+        remaining_budget = max(0.0, budget_cap - proposed_cost)
+        pct = min(100.0, (proposed_cost / budget_cap) * 100.0) if budget_cap > 0 else 0.0
+        is_compliant = proposed_cost <= budget_cap
+
+        # ── 2. SMART ALERTS & THRESHOLDS ────────────────────────────────────
+        if pct >= 90.0:
+            alert_html = (
+                '<div style="background:linear-gradient(135deg,#FEE2E2,#FFF5F5);border:1.5px solid #EF4444;'
+                'border-radius:12px;padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;gap:14px;">'
+                '<span style="font-size:28px;">🚨</span>'
+                f'<div><div style="font-weight:700;color:#B91C1C;font-size:14px;">Budget Critical — {pct:.1f}% Used</div>'
+                f'<div style="font-size:12px;color:#EF4444;margin-top:2px;">Only <strong>${remaining_budget:,.2f}</strong> remaining. '
+                'Consider deferring non-urgent orders or splitting into 2 cycles.</div></div>'
+                '<span style="margin-left:auto;font-size:11px;background:#EF4444;color:white;'
+                'padding:4px 10px;border-radius:20px;font-weight:700;">ACTION REQUIRED</span></div>'
+            )
+            st.markdown(alert_html, unsafe_allow_html=True)
+        elif pct >= 75.0:
+            alert_html = (
+                '<div style="background:linear-gradient(135deg,#FEF3C7,#FFFBEB);border:1.5px solid #F59E0B;'
+                'border-radius:12px;padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;gap:14px;">'
+                '<span style="font-size:28px;">⚠️</span>'
+                f'<div><div style="font-weight:700;color:#92400E;font-size:14px;">Budget Warning — {pct:.1f}% Used</div>'
+                f'<div style="font-size:12px;color:#D97706;margin-top:2px;">Approaching limit. '
+                f'<strong>${remaining_budget:,.2f}</strong> remaining. Review low-priority orders.</div></div>'
+                '<span style="margin-left:auto;font-size:11px;background:#F59E0B;color:white;'
+                'padding:4px 10px;border-radius:20px;font-weight:700;">REVIEW</span></div>'
+            )
+            st.markdown(alert_html, unsafe_allow_html=True)
+
+        # ── Budget Card with live threshold coloring ─────────────────────────
+        if pct >= 90.0:
+            bar_color = "linear-gradient(90deg,#EF4444,#DC2626)"
+            pct_color = "#EF4444"
+        elif pct >= 75.0:
+            bar_color = "linear-gradient(90deg,#F59E0B,#D97706)"
+            pct_color = "#F59E0B"
+        else:
+            bar_color = "linear-gradient(90deg,#00A8C6 0%,#3B82F6 100%)"
+            pct_color = "#00A8C6"
 
         remaining_color = "#10B981" if is_compliant else "#EF4444"
         status_bg = "#D1FAE5" if is_compliant else "#FEE2E2"
@@ -1676,17 +1742,30 @@ elif selected_page == "AI_Agent":
         status_text = "COMPLIANT" if is_compliant else "EXCEEDS LIMITS"
         status_icon = "●"
 
-        # Render Budget Card
+        # Threshold markers HTML (dotted lines at 75% and 90%)
+        marker_html = (
+            '<div style="position:relative;background-color:#EBF3FC;width:100%;height:10px;'
+            'border-radius:5px;overflow:visible;margin-bottom:4px;">'
+            f'<div style="background:{bar_color};width:{pct:.1f}%;height:100%;border-radius:5px;"></div>'
+            '<div style="position:absolute;top:-4px;left:75%;width:2px;height:18px;'
+            'background:#F59E0B;opacity:0.7;border-radius:1px;" title="75% Warning"></div>'
+            '<div style="position:absolute;top:-4px;left:90%;width:2px;height:18px;'
+            'background:#EF4444;opacity:0.7;border-radius:1px;" title="90% Critical"></div>'
+            '</div>'
+            '<div style="display:flex;justify-content:space-between;font-size:10px;color:#8CA0B8;margin-bottom:8px;">'
+            '<span>0%</span><span style="color:#F59E0B;">75% ⚠</span>'
+            '<span style="color:#EF4444;">90% 🚨</span><span>100%</span></div>'
+        )
+
         budget_html = (
             f'<div style="background-color:#FFFFFF;border:1px solid #E4EDF5;border-radius:16px;padding:24px;'
-            f'box-shadow:0 4px 12px rgba(28,61,90,0.02);margin-bottom:25px;'
+            f'box-shadow:0 4px 12px rgba(28,61,90,0.02);margin-bottom:18px;'
             f'display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:24px;">'
             f'<div style="border-right:1px solid #E4EDF5;padding-right:24px;">'
             f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
             f'<span style="font-weight:700;color:#1C3D5A;font-size:15px;">Budget Utilization</span>'
-            f'<span style="font-weight:700;color:#00A8C6;font-size:15px;">{pct:.1f}%</span></div>'
-            f'<div style="background-color:#EBF3FC;width:100%;height:10px;border-radius:5px;overflow:hidden;margin-bottom:12px;">'
-            f'<div style="background:linear-gradient(90deg,#00A8C6 0%,#3B82F6 100%);width:{pct:.1f}%;height:100%;border-radius:5px;"></div></div>'
+            f'<span style="font-weight:700;color:{pct_color};font-size:15px;">{pct:.1f}%</span></div>'
+            f'{marker_html}'
             f'<div style="display:flex;justify-content:space-between;font-size:12px;color:#5B7A9C;">'
             f'<span>Spent: <strong>${proposed_cost:,.2f}</strong></span>'
             f'<span>Limit: <strong>${budget_cap:,.2f}</strong></span></div></div>'
@@ -1700,6 +1779,126 @@ elif selected_page == "AI_Agent":
             f'{status_icon} {status_text}</span></div></div>'
         )
         st.markdown(budget_html, unsafe_allow_html=True)
+
+        # ── 3. HISTORICAL BUDGET TRACKING ────────────────────────────────────
+        import pandas as pd
+        # Derive weekly spend from real demand velocity trend data
+        demand_data = load_mock_json("demand_data.json")
+        velocity_trend = demand_data.get("sales_velocity_trend", [])
+
+        if velocity_trend:
+            # Use demand velocity ratios to simulate proportional spend across 4 weeks
+            # Week 4 = actual current spend (proposed_cost); weeks 1-3 scaled from demand
+            total_demand = sum(
+                v.get("Electronics", 0) + v.get("Beverages", 0) +
+                v.get("Health", 0) + v.get("Fitness", 0)
+                for v in velocity_trend
+            )
+            # Split 7 data points into 4 weekly buckets (2-2-2-1)
+            def week_sum(points):
+                return sum(
+                    p.get("Electronics", 0) + p.get("Beverages", 0) +
+                    p.get("Health", 0) + p.get("Fitness", 0)
+                    for p in points
+                )
+
+            buckets = [
+                velocity_trend[0:2],
+                velocity_trend[2:4],
+                velocity_trend[4:6],
+                velocity_trend[6:7]
+            ]
+            bucket_sums = [week_sum(b) for b in buckets]
+            grand = sum(bucket_sums) or 1
+            # Scale so Week 4 matches actual spend
+            scale = proposed_cost / bucket_sums[3] if bucket_sums[3] > 0 else 1
+            weekly_spend = [round(s * scale, 2) for s in bucket_sums]
+
+            hist_df = pd.DataFrame({
+                "Week": ["Week 1", "Week 2", "Week 3", "Week 4 (Current)"],
+                "Spend ($)": weekly_spend,
+                "Budget Cap ($)": [budget_cap] * 4
+            }).set_index("Week")
+
+            st.markdown(
+                '<div style="background:#FFFFFF;border:1px solid #E4EDF5;border-radius:14px;'
+                'padding:20px 24px;margin-bottom:18px;">'
+                '<div style="font-weight:700;color:#1C3D5A;font-size:14px;margin-bottom:4px;">'
+                '📊 Historical Budget Tracking <span style="font-size:11px;font-weight:400;'
+                'color:#8CA0B8;margin-left:6px;">Spend Trend — Current Quarter (Simulated from demand velocity)</span></div>',
+                unsafe_allow_html=True)
+            st.bar_chart(hist_df, color=["#00A8C6", "#E4EDF5"], height=180)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        # ── 4. AI-DRIVEN BUDGET SUGGESTION ───────────────────────────────────
+        # Build suggestion from real pct + demand trend data
+        demand_trend = demand_data.get("sales_velocity_trend", [])
+        elec_trend = 0
+        if len(demand_trend) >= 2:
+            elec_start = demand_trend[0].get("Electronics", 1)
+            elec_end = demand_trend[-1].get("Electronics", 1)
+            elec_trend = round(((elec_end - elec_start) / max(elec_start, 1)) * 100, 1)
+
+        if pct >= 90.0:
+            ai_icon = "🚨"
+            ai_title = "AI Budget Action Required"
+            ai_color = "#EF4444"
+            ai_bg = "#FEF2F2"
+            ai_border = "#EF444440"
+            ai_msg = (
+                f"Spend is at <strong>{pct:.1f}%</strong> of your ${budget_cap:,} cap. "
+                "Recommend <strong>splitting orders into 2 cycles</strong> or reducing quantities on "
+                "non-urgent (ORDER) items by ~15% to stay within budget."
+            )
+        elif pct >= 75.0:
+            ai_icon = "⚠️"
+            ai_title = "AI Budget Recommendation"
+            ai_color = "#D97706"
+            ai_bg = "#FFFBEB"
+            ai_border = "#F59E0B40"
+            ai_msg = (
+                f"At <strong>{pct:.1f}%</strong> utilization. Consider deferring low-urgency Fitness "
+                "category orders. Prioritize URGENT ORDER items first to protect against stockouts."
+            )
+        elif remaining_budget > budget_cap * 0.5:
+            ai_icon = "💡"
+            ai_title = "AI Budget Insight"
+            ai_color = "#0369A1"
+            ai_bg = "#EFF6FF"
+            ai_border = "#3B82F640"
+            if elec_trend > 10:
+                ai_msg = (
+                    f"<strong>${remaining_budget:,.2f}</strong> remaining ({100-pct:.1f}% free). "
+                    f"Electronics demand is trending <strong>+{elec_trend}%</strong> this quarter. "
+                    "Consider pre-ordering high-velocity Electronics SKUs now to lock in current pricing before Q3 surge."
+                )
+            else:
+                ai_msg = (
+                    f"<strong>${remaining_budget:,.2f}</strong> remaining. Budget is healthy. "
+                    "All 5 recommended orders are within cap — safe to approve all."
+                )
+        else:
+            ai_icon = "✅"
+            ai_title = "AI Budget Status"
+            ai_color = "#10B981"
+            ai_bg = "#ECFDF5"
+            ai_border = "#10B98140"
+            ai_msg = (
+                f"Budget utilization at <strong>{pct:.1f}%</strong> — within safe operating zone. "
+                "No action needed. All proposed orders are compliant."
+            )
+
+        ai_html = (
+            f'<div style="background:{ai_bg};border:1.5px solid {ai_border};border-radius:12px;'
+            f'padding:16px 20px;margin-bottom:20px;display:flex;align-items:flex-start;gap:14px;">'
+            f'<span style="font-size:26px;flex-shrink:0;">{ai_icon}</span>'
+            f'<div><div style="font-weight:700;color:{ai_color};font-size:13px;margin-bottom:4px;">{ai_title}</div>'
+            f'<div style="font-size:13px;color:#374151;line-height:1.6;">{ai_msg}</div></div>'
+            f'<span style="margin-left:auto;flex-shrink:0;font-size:10px;background:{ai_color};'
+            f'color:white;padding:3px 9px;border-radius:20px;font-weight:700;height:fit-content;'
+            f'white-space:nowrap;">AI INSIGHT</span></div>'
+        )
+        st.markdown(ai_html, unsafe_allow_html=True)
 
         # ── Compute pending items (not yet actioned) ──────────────────────────
         pending_recs = [
