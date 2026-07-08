@@ -1,15 +1,16 @@
 import os
 import sys
 
-from graph import graph
-from langchain_core.messages import HumanMessage
-
 project_root = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..")
 )
 
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+
+
+from graph import graph
+from langchain_core.messages import HumanMessage
 
 
 def main():

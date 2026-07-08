@@ -1,10 +1,14 @@
 from datetime import datetime, timedelta
 
-from src.backend.database import get_connection
+import requests
+
 from src.services.agentic_ai.state import State
+
+BASE_URL = "http://127.0.0.1:8000/api"
 
 
 def inventory_agent(state: State):
+    """Fetch inventory details from FastAPI."""
 
     if state.get("error"):
         return state
@@ -12,41 +16,33 @@ def inventory_agent(state: State):
     last_msg = state["message"][-1]
 
     product_name = (
-        last_msg.content.strip().lower()
+        last_msg.content.strip()
         if hasattr(last_msg, "content")
-        else str(last_msg).strip().lower()
+        else str(last_msg).strip()
     )
 
-    conn = get_connection()
-    cursor = conn.cursor()
+    try:
+        response = requests.get(
+            f"{BASE_URL}/inventory",
+            params={"product_name": product_name},
+            timeout=10,
+        )
 
-    cursor.execute(
-        """
-        SELECT
-            i.date,
-            p.product_name,
-            i.current_stock,
-            COALESCE(s.quantity_sold,0) AS quantity_sold,
-            p.supplier_id,
-            p.avg_lead_time_day,
-            p.cost_price,
-            p.base_price,
-            COALESCE(s.customer_rating,0) AS customer_rating,
-            i.expiry_date
-        FROM inventory_daily i
-        INNER JOIN products p
-            ON i.product_id = p.product_id
-        LEFT JOIN sales s
-            ON i.product_id = s.product_id
-            AND i.date = s.date
-        WHERE LOWER(TRIM(p.product_name)) = ?
-        ORDER BY i.date
-        """,
-        (product_name,),
-    )
+        response.raise_for_status()
 
-    rows = cursor.fetchall()
-    conn.close()
+    except requests.exceptions.ConnectionError:
+        state["error"] = (
+            "Unable to connect to the FastAPI server.\n"
+            "Start it using:\n"
+            "python -m uvicorn src.backend.main:app --reload"
+        )
+        return state
+
+    except requests.exceptions.RequestException as err:
+        state["error"] = f"FastAPI Error: {err}"
+        return state
+
+    rows = response.json()
 
     if not rows:
         state["error"] = f"Product '{product_name}' not found."
@@ -73,12 +69,18 @@ def inventory_agent(state: State):
     state["all_dates_inventory"] = inventory_history
 
     latest = inventory_history[-1]
+
     state["inventory"] = latest
 
-    latest_date = datetime.strptime(latest["date"], "%Y-%m-%d")
+    latest_date = datetime.strptime(
+        latest["date"],
+        "%Y-%m-%d",
+    )
 
     state["next_day_inventory"] = {
-        "date": (latest_date + timedelta(days=1)).strftime("%Y-%m-%d"),
+        "date": (
+            latest_date + timedelta(days=1)
+        ).strftime("%Y-%m-%d"),
         "current_stock": max(
             0,
             latest["current_stock"] - latest["quantity_sold"],
