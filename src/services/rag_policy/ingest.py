@@ -44,7 +44,11 @@ def _create_vector_db(
         embedding_model: GoogleGenerativeAIEmbeddings) -> Chroma:
     if CHROMA_DIR.exists():
         print(f"Removing old vector index directory at {CHROMA_DIR}")
-        shutil.rmtree(CHROMA_DIR)
+        try:
+            shutil.rmtree(CHROMA_DIR)
+        except Exception as e:
+            print(f"Warning: Could not remove directory {CHROMA_DIR} due to a file lock: {e}")
+            print("Attempting to proceed anyway (Chroma will overwrite the index documents)...")
 
     return Chroma.from_texts(
         texts=chunks,
