@@ -1,5 +1,8 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv()
+
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 import threading
@@ -26,7 +29,7 @@ def get_vector_db() -> Chroma:
                 _ensure_vector_store()
                 api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "dummy"
                 embedding_model = GoogleGenerativeAIEmbeddings(
-                    model="models/embedding-001",
+                    model="models/gemini-embedding-2",
                     google_api_key=api_key
                 )
                 _VECTOR_DB = Chroma(

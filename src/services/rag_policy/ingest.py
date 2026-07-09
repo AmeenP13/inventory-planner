@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv()
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
@@ -32,7 +34,7 @@ def _load_policy_documents(policy_path: Path) -> list[str]:
 def _create_embedding_model() -> GoogleGenerativeAIEmbeddings:
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "dummy"
     return GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
+        model="models/gemini-embedding-2",
         google_api_key=api_key
     )
 
@@ -42,7 +44,11 @@ def _create_vector_db(
         embedding_model: GoogleGenerativeAIEmbeddings) -> Chroma:
     if CHROMA_DIR.exists():
         print(f"Removing old vector index directory at {CHROMA_DIR}")
-        shutil.rmtree(CHROMA_DIR)
+        try:
+            shutil.rmtree(CHROMA_DIR)
+        except Exception as e:
+            print(f"Warning: Could not remove directory {CHROMA_DIR} due to a file lock: {e}")
+            print("Attempting to proceed anyway (Chroma will overwrite the index documents)...")
 
     return Chroma.from_texts(
         texts=chunks,

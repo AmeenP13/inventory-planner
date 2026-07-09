@@ -107,11 +107,11 @@ def main():
         type=int,
         default=25,
         help="Number of most at-risk products to show in the chart")
-    parser.add_argument("--report-out", default="low_stock_alert_report.csv")
-    parser.add_argument("--chart-out", default="stock_status_chart.png")
-    parser.add_argument("--dead-stock-out", default="dead_stock_report.csv")
-    parser.add_argument("--supplier-out", default="supplier_scorecard.csv")
-    parser.add_argument("--reorder-plan-out", default="reorder_plan.csv")
+    parser.add_argument("--report-out", default="data/low_stock_alert_report.csv")
+    parser.add_argument("--chart-out", default="data/stock_status_chart.png")
+    parser.add_argument("--dead-stock-out", default="data/dead_stock_report.csv")
+    parser.add_argument("--supplier-out", default="data/supplier_scorecard.csv")
+    parser.add_argument("--reorder-plan-out", default="data/reorder_plan.csv")
     args = parser.parse_args()
 
     # ------------------------------------------------------------------

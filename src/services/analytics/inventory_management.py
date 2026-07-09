@@ -301,16 +301,16 @@ def main():
         description="Inventory Management & Reorder Alert System")
     parser.add_argument(
         "--csv",
-        default="final_inventory_dataset_real_products.csv",
+        default="data/final_inventory_dataset_real_products.csv",
         help="Path to input CSV file")
     parser.add_argument(
         "--service-level",
         type=float,
         default=0.95,
         help="Target service level for safety stock (e.g. 0.90, 0.95, 0.99)")
-    parser.add_argument("--report-out", default="low_stock_alert_report.csv",
+    parser.add_argument("--report-out", default="data/low_stock_alert_report.csv",
                         help="Output path for the full CSV report")
-    parser.add_argument("--chart-out", default="stock_status_chart.png",
+    parser.add_argument("--chart-out", default="data/stock_status_chart.png",
                         help="Output path for the chart image")
     parser.add_argument(
         "--top-n",
