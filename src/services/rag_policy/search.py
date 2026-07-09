@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 try:
     from .vector_db import get_vector_db
 except ImportError:

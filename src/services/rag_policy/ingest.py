@@ -34,7 +34,7 @@ def _load_policy_documents(policy_path: Path) -> list[str]:
 def _create_embedding_model() -> GoogleGenerativeAIEmbeddings:
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "dummy"
     return GoogleGenerativeAIEmbeddings(
-        model="models/text-embedding-004",
+        model="models/gemini-embedding-2",
         google_api_key=api_key
     )
 
