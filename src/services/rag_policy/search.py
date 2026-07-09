@@ -5,11 +5,19 @@ except ImportError:
 
 
 def search_policy(user_query: str) -> str:
-    vector_db = get_vector_db()
-    results = vector_db.similarity_search(user_query, k=1)
+    import os
+    from src.services.agentic_ai.config import is_dummy_key
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if is_dummy_key(api_key):
+        raise ValueError("Google Gemini API Key is not configured or is a dummy key.")
 
-    if results:
-        return results[0].page_content
+    try:
+        vector_db = get_vector_db()
+        results = vector_db.similarity_search(user_query, k=1)
+        if results:
+            return results[0].page_content
+    except Exception as e:
+        print(f"Similarity search failed: {e}")
 
     return "No policy found."
 

@@ -26,7 +26,7 @@ def get_vector_db() -> Chroma:
                 _ensure_vector_store()
                 api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "dummy"
                 embedding_model = GoogleGenerativeAIEmbeddings(
-                    model="models/embedding-001",
+                    model="models/text-embedding-004",
                     google_api_key=api_key
                 )
                 _VECTOR_DB = Chroma(

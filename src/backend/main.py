@@ -4,18 +4,23 @@ main.py
 FastAPI app — Database & API Architect role.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+import time
 from typing import List, Optional
 from pydantic import BaseModel
-import sqlite3
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import concurrent.futures
+from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from . import database
-from .models import Product, Supplier, InventoryRecord, SalesRecord, InventoryUpdate, OrderApproval
+from .models import (
+    Product, Supplier, InventoryRecord, SalesRecord, InventoryUpdate, OrderApproval,
+    ProductORM, SupplierORM, InventoryDailyORM, SalesORM
+)
 
 from contextlib import asynccontextmanager
 import threading
@@ -44,153 +49,127 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.perf_counter()
+    response = await call_next(request)
+    process_time = time.perf_counter() - start_time
+    response.headers["X-Process-Time"] = f"{process_time * 1000:.2f}ms"
+    print(f"[HTTP LOG] {request.method} {request.url.path} - {response.status_code} - Completed in {process_time * 1000:.2f}ms")
+    return response
+
+
 @app.get("/")
 def root():
     return {"message": "Inventory Replenishment Agent API is running"}
 
-
 @app.get("/api/products", response_model=List[Product])
-def get_products():
-    conn = database.get_connection()
-    rows = conn.execute("SELECT * FROM products").fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+def get_products(db: Session = Depends(database.get_db)):
+    return db.query(ProductORM).all()
 
 
 @app.get("/api/products/{product_id}", response_model=Product)
-def get_product(product_id: int):
-    conn = database.get_connection()
-    row = conn.execute(
-        "SELECT * FROM products WHERE product_id = ?", (product_id,)
-    ).fetchone()
-    conn.close()
+def get_product(product_id: int, db: Session = Depends(database.get_db)):
+    row = db.query(ProductORM).filter(ProductORM.product_id == product_id).first()
     if row is None:
         raise HTTPException(status_code=404,
                             detail=f"Product {product_id} not found")
-    return dict(row)
+    return row
 
 
 @app.get("/api/suppliers", response_model=List[Supplier])
-def get_suppliers():
-    conn = database.get_connection()
-    rows = conn.execute("SELECT * FROM suppliers").fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+def get_suppliers(db: Session = Depends(database.get_db)):
+    return db.query(SupplierORM).all()
 
 
 @app.get("/api/inventory", response_model=List[InventoryRecord])
 def get_inventory(
         product_id: Optional[int] = None,
-        date: Optional[str] = None):
-    conn = database.get_connection()
-    query = "SELECT * FROM inventory_daily WHERE 1=1"
-    params = []
+        date: Optional[str] = None,
+        db: Session = Depends(database.get_db)):
+    query = db.query(InventoryDailyORM)
     if product_id is not None:
-        query += " AND product_id = ?"
-        params.append(product_id)
+        query = query.filter(InventoryDailyORM.product_id == product_id)
     if date is not None:
-        query += " AND date = ?"
-        params.append(date)
-    rows = conn.execute(query, params).fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+        query = query.filter(InventoryDailyORM.date == date)
+    return query.all()
 
 
 @app.get("/api/inventory/latest", response_model=List[InventoryRecord])
-def get_latest_inventory():
-    conn = database.get_connection()
-    rows = conn.execute(
-        """
-        SELECT i.* FROM inventory_daily i
-        WHERE i.date = (SELECT MAX(date) FROM inventory_daily)
-        """
-    ).fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+def get_latest_inventory(db: Session = Depends(database.get_db)):
+    max_date_subquery = db.query(func.max(InventoryDailyORM.date)).scalar_subquery()
+    return db.query(InventoryDailyORM).filter(InventoryDailyORM.date == max_date_subquery).all()
 
 
 @app.get("/api/inventory/low_stock", response_model=List[InventoryRecord])
-def get_low_stock(threshold: int = 20):
-    conn = database.get_connection()
-    rows = conn.execute(
-        """
-        SELECT * FROM inventory_daily
-        WHERE date = (SELECT MAX(date) FROM inventory_daily)
-        AND current_stock <= ?
-        """,
-        (threshold,),
-    ).fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+def get_low_stock(threshold: int = 20, db: Session = Depends(database.get_db)):
+    max_date_subquery = db.query(func.max(InventoryDailyORM.date)).scalar_subquery()
+    return db.query(InventoryDailyORM).filter(
+        InventoryDailyORM.date == max_date_subquery,
+        InventoryDailyORM.current_stock <= threshold
+    ).all()
 
 
 @app.get("/api/sales", response_model=List[SalesRecord])
-def get_sales(product_id: Optional[int] = None, date: Optional[str] = None):
-    conn = database.get_connection()
-    query = "SELECT * FROM sales WHERE 1=1"
-    params = []
+def get_sales(product_id: Optional[int] = None, date: Optional[str] = None, db: Session = Depends(database.get_db)):
+    query = db.query(SalesORM)
     if product_id is not None:
-        query += " AND product_id = ?"
-        params.append(product_id)
+        query = query.filter(SalesORM.product_id == product_id)
     if date is not None:
-        query += " AND date = ?"
-        params.append(date)
-    rows = conn.execute(query, params).fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+        query = query.filter(SalesORM.date == date)
+    return query.all()
 
 
 @app.post("/api/update_inventory")
-def update_inventory(update: InventoryUpdate):
-    conn = database.get_connection()
-    exists = conn.execute(
-        "SELECT 1 FROM products WHERE product_id = ?", (update.product_id,)
-    ).fetchone()
-    if not exists:
-        conn.close()
+def update_inventory(update: InventoryUpdate, db: Session = Depends(database.get_db)):
+    product_exists = db.query(ProductORM).filter(ProductORM.product_id == update.product_id).first()
+    if not product_exists:
         raise HTTPException(
-            status_code=404, detail=f"Product {
-                update.product_id} not found")
+            status_code=404, detail=f"Product {update.product_id} not found")
 
-    conn.execute(
-        """
-        INSERT INTO inventory_daily (product_id, date, current_stock, expiry_date)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(product_id, date) DO UPDATE SET
-            current_stock = excluded.current_stock,
-            expiry_date = excluded.expiry_date
-        """,
-        (update.product_id, update.date, update.current_stock, update.expiry_date),
-    )
-    conn.commit()
-    conn.close()
-    global _PROPOSAL_CACHE
+    record = db.query(InventoryDailyORM).filter(
+        InventoryDailyORM.product_id == update.product_id,
+        InventoryDailyORM.date == update.date
+    ).first()
+
+    if record:
+        record.current_stock = update.current_stock
+        record.expiry_date = update.expiry_date
+    else:
+        record = InventoryDailyORM(
+            product_id=update.product_id,
+            date=update.date,
+            current_stock=update.current_stock,
+            expiry_date=update.expiry_date
+        )
+        db.add(record)
+    
+    db.commit()
+    global _PROPOSAL_CACHE, _REPORT_CACHE, _OVERVIEW_CACHE
     _PROPOSAL_CACHE = None
+    _REPORT_CACHE = None
+    _OVERVIEW_CACHE = None
     return {
         "status": "ok",
-        "message": f"Inventory updated for product {
-            update.product_id} on {
-            update.date}"}
+        "message": f"Inventory updated for product {update.product_id} on {update.date}"
+    }
 
 
 @app.post("/api/approve_order")
-def approve_order(order: OrderApproval):
-    conn = database.get_connection()
-    product = conn.execute(
-        "SELECT * FROM products WHERE product_id = ?", (order.product_id,)
-    ).fetchone()
-    conn.close()
+def approve_order(order: OrderApproval, db: Session = Depends(database.get_db)):
+    product = db.query(ProductORM).filter(ProductORM.product_id == order.product_id).first()
     if not product:
         raise HTTPException(
-            status_code=404, detail=f"Product {
-                order.product_id} not found")
+            status_code=404, detail=f"Product {order.product_id} not found")
 
-    global _PROPOSAL_CACHE
+    global _PROPOSAL_CACHE, _REPORT_CACHE, _OVERVIEW_CACHE
     _PROPOSAL_CACHE = None
+    _REPORT_CACHE = None
+    _OVERVIEW_CACHE = None
     return {
         "status": "approved",
         "product_id": order.product_id,
-        "product_name": product["product_name"],
+        "product_name": product.product_name,
         "quantity": order.quantity,
         "supplier_id": order.supplier_id,
         "notes": order.notes,
@@ -198,20 +177,19 @@ def approve_order(order: OrderApproval):
 
 
 @app.get("/api/dead_stock")
-def get_dead_stock(days: int = 14, max_units_sold: int = 5):
-    conn = database.get_connection()
-    rows = conn.execute(
-        f"""
-        SELECT product_id, SUM(quantity_sold) as total_sold
-        FROM sales
-        WHERE date >= (SELECT date(MAX(date), '-{days} days') FROM sales)
-        GROUP BY product_id
-        HAVING total_sold <= ?
-        """,
-        (max_units_sold,),
-    ).fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+def get_dead_stock(days: int = 14, max_units_sold: int = 5, db: Session = Depends(database.get_db)):
+    max_date_subquery = db.query(func.date(func.max(SalesORM.date), f"-{days} days")).scalar_subquery()
+    rows = db.query(
+        SalesORM.product_id,
+        func.sum(SalesORM.quantity_sold).label("total_sold")
+    ).filter(
+        SalesORM.date >= max_date_subquery
+    ).group_by(
+        SalesORM.product_id
+    ).having(
+        func.sum(SalesORM.quantity_sold) <= max_units_sold
+    ).all()
+    return [{"product_id": row.product_id, "total_sold": row.total_sold} for row in rows]
 
 
 # =====================================================================
@@ -219,6 +197,8 @@ def get_dead_stock(days: int = 14, max_units_sold: int = 5):
 # =====================================================================
 
 _PROPOSAL_CACHE = None
+_REPORT_CACHE = None
+_OVERVIEW_CACHE = None
 
 
 class ReplenishRequest(BaseModel):
@@ -275,27 +255,32 @@ def get_product_category(name: str) -> str:
 
 
 def get_combined_report(service_level: float = 0.95):
+    global _REPORT_CACHE
+    if _REPORT_CACHE is not None:
+        return _REPORT_CACHE
+
     from src.services.analytics.inventory_management import build_report
-    conn = database.get_connection()
-    query = """
-        SELECT
-            i.product_id,
-            p.product_name,
-            i.current_stock,
-            p.cost_price,
-            p.base_price,
-            i.date,
-            COALESCE(s.quantity_sold, 0) as quantity_sold,
-            COALESCE(s.customer_rating, 0.0) as customer_rating,
-            p.supplier_id,
-            p.avg_lead_time_day,
-            i.expiry_date
-        FROM inventory_daily i
-        JOIN products p ON i.product_id = p.product_id
-        LEFT JOIN sales s ON i.product_id = s.product_id AND i.date = s.date
-    """
-    df = pd.read_sql_query(query, conn)
-    conn.close()
+    from .database import get_db_session
+    
+    with get_db_session() as db:
+        query = db.query(
+            InventoryDailyORM.product_id,
+            ProductORM.product_name,
+            InventoryDailyORM.current_stock,
+            ProductORM.cost_price,
+            ProductORM.base_price,
+            InventoryDailyORM.date,
+            func.coalesce(SalesORM.quantity_sold, 0).label("quantity_sold"),
+            func.coalesce(SalesORM.customer_rating, 0.0).label("customer_rating"),
+            ProductORM.supplier_id,
+            ProductORM.avg_lead_time_day,
+            InventoryDailyORM.expiry_date
+        ).join(
+            ProductORM, InventoryDailyORM.product_id == ProductORM.product_id
+        ).outerjoin(
+            SalesORM, (InventoryDailyORM.product_id == SalesORM.product_id) & (InventoryDailyORM.date == SalesORM.date)
+        )
+        df = pd.read_sql_query(query.statement, db.bind)
 
     # Convert dates
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
@@ -307,11 +292,16 @@ def get_combined_report(service_level: float = 0.95):
     df = df.dropna(subset=["product_id", "date"])
 
     report = build_report(df, service_level=service_level)
+    _REPORT_CACHE = report
     return report
 
 
 @app.get("/api/overview")
 def get_overview():
+    global _OVERVIEW_CACHE
+    if _OVERVIEW_CACHE is not None:
+        return _OVERVIEW_CACHE
+
     try:
         report = get_combined_report()
     except Exception as e:
@@ -359,15 +349,20 @@ def get_overview():
         }
 
     # Demand Trend
-    conn = database.get_connection()
-    sales_df = pd.read_sql_query("""
-        SELECT s.date, p.product_name, SUM(s.quantity_sold) as volume
-        FROM sales s
-        JOIN products p ON s.product_id = p.product_id
-        GROUP BY s.date, p.product_name
-        ORDER BY s.date DESC
-    """, conn)
-    conn.close()
+    from .database import get_db_session
+    with get_db_session() as db:
+        query = db.query(
+            SalesORM.date,
+            ProductORM.product_name,
+            func.sum(SalesORM.quantity_sold).label("volume")
+        ).join(
+            ProductORM, SalesORM.product_id == ProductORM.product_id
+        ).group_by(
+            SalesORM.date, ProductORM.product_name
+        ).order_by(
+            SalesORM.date.desc()
+        )
+        sales_df = pd.read_sql_query(query.statement, db.bind)
 
     trend_list = []
     if not sales_df.empty:
@@ -387,7 +382,7 @@ def get_overview():
                 d_item[col] = int(row_data[col])
             trend_list.append(d_item)
 
-    return {
+    result = {
         "summary": {
             "total_skus": {"value": total_skus, "change": "Active in catalog"},
             "needs_action": {
@@ -411,6 +406,8 @@ def get_overview():
         "snapshot_inventory": snapshot[:4],
         "alerts": alerts
     }
+    _OVERVIEW_CACHE = result
+    return result
 
 
 @app.get("/api/inventory_report")
@@ -462,15 +459,20 @@ def get_demand_report():
             "days_remaining": days_left
         })
 
-    conn = database.get_connection()
-    sales_df = pd.read_sql_query("""
-        SELECT s.date, p.product_name, SUM(s.quantity_sold) as volume
-        FROM sales s
-        JOIN products p ON s.product_id = p.product_id
-        GROUP BY s.date, p.product_name
-        ORDER BY s.date DESC
-    """, conn)
-    conn.close()
+    from .database import get_db_session
+    with get_db_session() as db:
+        query = db.query(
+            SalesORM.date,
+            ProductORM.product_name,
+            func.sum(SalesORM.quantity_sold).label("volume")
+        ).join(
+            ProductORM, SalesORM.product_id == ProductORM.product_id
+        ).group_by(
+            SalesORM.date, ProductORM.product_name
+        ).order_by(
+            SalesORM.date.desc()
+        )
+        sales_df = pd.read_sql_query(query.statement, db.bind)
 
     trend_list = []
     daily_volume_by_category = []

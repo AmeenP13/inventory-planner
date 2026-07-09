@@ -65,7 +65,7 @@ except ImportError:
     DESKTOP_NOTIFICATIONS_AVAILABLE = False
 
 
-ALERT_LOG_PATH = "inventory_alert_log.csv"
+ALERT_LOG_PATH = "data/inventory_alert_log.csv"
 
 
 def send_desktop_notification(title: str, message: str) -> None:
@@ -181,11 +181,11 @@ def main():
         help="Target service level for safety stock (e.g. 0.90, 0.95, 0.99)")
     parser.add_argument(
         "--report-out",
-        default="low_stock_alert_report.csv",
+        default="data/low_stock_alert_report.csv",
         help="Output path for the full CSV report (overwritten each check)")
     parser.add_argument(
         "--chart-out",
-        default="stock_status_chart.png",
+        default="data/stock_status_chart.png",
         help="Output path for the chart image (overwritten each check)")
     parser.add_argument(
         "--top-n",

@@ -33,14 +33,19 @@ def recommendation_agent(state: State):
         policy=policy,
     )
 
+    import os
+    from src.services.agentic_ai.config import is_dummy_key
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if is_dummy_key(api_key):
+        raise ValueError("Google Gemini API Key is not configured or is a dummy key.")
+
     try:
         response = llm.invoke(prompt)
         recommendation = response.content.strip()
         state["recommendation"] = recommendation
     except Exception as e:
         state["error"] = f"LLM Error: {str(e)}"
-        state["recommendation"] = f"Error: Failed to generate recommendation using LLM. Details: {
-            str(e)}"
+        state["recommendation"] = f"Error: Failed to generate recommendation using LLM. Details: {str(e)}"
 
     return state
 

@@ -353,9 +353,9 @@ def main():
         type=int,
         default=DEAD_STOCK_WINDOW_DAYS,
         help=f"Days with zero sales to flag as dead stock (default: {DEAD_STOCK_WINDOW_DAYS})")
-    parser.add_argument("--dead-stock-out", default="dead_stock_report.csv")
-    parser.add_argument("--supplier-out", default="supplier_scorecard.csv")
-    parser.add_argument("--reorder-plan-out", default="reorder_plan.csv")
+    parser.add_argument("--dead-stock-out", default="data/dead_stock_report.csv")
+    parser.add_argument("--supplier-out", default="data/supplier_scorecard.csv")
+    parser.add_argument("--reorder-plan-out", default="data/reorder_plan.csv")
     args = parser.parse_args()
 
     print(f"Loading data from: {args.csv}")
