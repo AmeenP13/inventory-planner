@@ -8,8 +8,7 @@ project_root = os.path.abspath(
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-
-from graph import graph
+from src.services.agentic_ai.graph import graph
 from langchain_core.messages import HumanMessage
 
 
@@ -17,11 +16,12 @@ def main():
     print("Autonomous AI inventory")
 
     while True:
-        user_input = input("\nEnter Product name (or Type Exit):").strip()
+        user_input = input("\nEnter Product name (or Type Exit): ").strip()
 
         if user_input.lower() in {"exit", "bye", "quit"}:
             print("\nExiting browser")
             break
+
         state = {
             "message": [HumanMessage(content=user_input)],
             "inventory": {},
@@ -37,9 +37,9 @@ def main():
         result = graph.invoke(state)
 
         if result.get("error"):
-            print(f"\nError :{result['error']}")
+            print(f"\nError: {result['error']}")
         else:
-            print(result["recommendation"])
+            print("\n" + result["recommendation"])
 
 
 if __name__ == "__main__":
