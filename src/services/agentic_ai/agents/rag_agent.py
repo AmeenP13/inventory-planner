@@ -9,15 +9,22 @@ def rag_agent(state: State):
 
     inventory = state.get("inventory", {})
     product = inventory.get("product_name", "Unknown Product")
-
     risk = state.get("risk", "Low")
 
     query = (
-        f"What is the company policy for {product} " f"when inventory risk is {risk}?"
+        f"What is the company policy for {product} "
+        f"when inventory risk is {risk}?"
     )
 
     try:
         policy = search_policy(query)
+
+        # If nothing is returned, use a default message
+        if not policy:
+            policy = "No policy found."
+
+        print(f"[RAG] Query   : {query}")
+        print(f"[RAG] Policy  : {policy}")
 
         state["policy"] = policy
 
@@ -32,6 +39,11 @@ def rag_agent(state: State):
             next_day["policy"] = policy
 
     except Exception as e:
+        print(f"[RAG ERROR] {e}")
+
+        state["policy"] = "No policy found."
+        inventory["policy"] = "No policy found."
+
         state["error"] = f"RAG Error: {e}"
 
     return state
