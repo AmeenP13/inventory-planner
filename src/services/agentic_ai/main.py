@@ -1,5 +1,3 @@
-from langchain_core.messages import HumanMessage
-from src.services.agentic_ai.graph import graph
 import os
 import sys
 
@@ -10,6 +8,8 @@ project_root = os.path.abspath(
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+from langchain_core.messages import HumanMessage
+from src.services.agentic_ai.graph import graph
 
 def main():
     print("Autonomous AI inventory")
