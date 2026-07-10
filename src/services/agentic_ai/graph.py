@@ -1,5 +1,4 @@
 from langgraph.graph import END, START, StateGraph
-
 from src.services.agentic_ai.agents.demand_agent import demand_agent
 from src.services.agentic_ai.agents.inventory_agent import inventory_agent
 from src.services.agentic_ai.agents.rag_agent import rag_agent
@@ -14,7 +13,7 @@ NODE_RAG = "rag"
 NODE_RECOMMENDATION = "recommendation"
 
 
-def _route_after_risk(state: State) -> str:
+def _route_after_risk(state: State):
     if state.get("error"):
         return NODE_RECOMMENDATION
 
@@ -24,7 +23,7 @@ def _route_after_risk(state: State) -> str:
     return NODE_RECOMMENDATION
 
 
-def _build_graph() -> StateGraph:
+def _build_graph():
     builder = StateGraph(State)
 
     builder.add_node(NODE_INVENTORY, inventory_agent)

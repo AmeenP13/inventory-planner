@@ -19,7 +19,8 @@ def demand_agent(state: State):
 
     product_name = state["inventory"]["product_name"].strip().lower()
 
-    product = report[report["product_name"].astype(str).str.lower() == product_name]
+    product = report[report["product_name"].astype(
+        str).str.lower() == product_name]
 
     if product.empty:
         state["error"] = f"{product_name} not found in preprocessing report."

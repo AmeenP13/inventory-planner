@@ -13,28 +13,30 @@ def inventory_agent(state: State):
     else:
         product_name = str(last_msg).lower().strip()
 
-
     with get_db_session() as db:
-        rows = db.query(
-            InventoryDailyORM.date,
-            ProductORM.product_name,
-            InventoryDailyORM.current_stock,
-            func.coalesce(SalesORM.quantity_sold, 0).label("quantity_sold"),
-            ProductORM.supplier_id,
-            ProductORM.avg_lead_time_day,
-            ProductORM.cost_price,
-            ProductORM.base_price,
-            func.coalesce(SalesORM.customer_rating, 0.0).label("customer_rating"),
-            InventoryDailyORM.expiry_date
-        ).join(
-            ProductORM, InventoryDailyORM.product_id == ProductORM.product_id
-        ).outerjoin(
-            SalesORM, (InventoryDailyORM.product_id == SalesORM.product_id) & (InventoryDailyORM.date == SalesORM.date)
-        ).filter(
-            func.lower(func.trim(ProductORM.product_name)) == product_name
-        ).order_by(
-            InventoryDailyORM.date
-        ).all()
+        rows = (
+            db.query(
+                InventoryDailyORM.date,
+                ProductORM.product_name,
+                InventoryDailyORM.current_stock,
+                func.coalesce(SalesORM.quantity_sold, 0).label("quantity_sold"),
+                ProductORM.supplier_id,
+                ProductORM.avg_lead_time_day,
+                ProductORM.cost_price,
+                ProductORM.base_price,
+                func.coalesce(SalesORM.customer_rating, 0.0).label("customer_rating"),
+                InventoryDailyORM.expiry_date,
+            )
+            .join(ProductORM, InventoryDailyORM.product_id == ProductORM.product_id)
+            .outerjoin(
+                SalesORM,
+                (InventoryDailyORM.product_id == SalesORM.product_id)
+                & (InventoryDailyORM.date == SalesORM.date),
+            )
+            .filter(func.lower(func.trim(ProductORM.product_name)) == product_name)
+            .order_by(InventoryDailyORM.date)
+            .all()
+        )
 
     if not rows:
         state["error"] = f"Product '{product_name}' not found."
@@ -42,18 +44,20 @@ def inventory_agent(state: State):
 
     inventory_history = []
     for row in rows:
-        inventory_history.append({
-            "date": row.date,
-            "product_name": row.product_name,
-            "current_stock": int(row.current_stock),
-            "quantity_sold": int(row.quantity_sold),
-            "supplier_id": row.supplier_id,
-            "lead_time": int(row.avg_lead_time_day),
-            "cost_price": float(row.cost_price),
-            "base_price": float(row.base_price),
-            "customer_rating": float(row.customer_rating),
-            "expiry_date": row.expiry_date
-        })
+        inventory_history.append(
+            {
+                "date": row.date,
+                "product_name": row.product_name,
+                "current_stock": int(row.current_stock),
+                "quantity_sold": int(row.quantity_sold),
+                "supplier_id": row.supplier_id,
+                "lead_time": int(row.avg_lead_time_day),
+                "cost_price": float(row.cost_price),
+                "base_price": float(row.base_price),
+                "customer_rating": float(row.customer_rating),
+                "expiry_date": row.expiry_date,
+            }
+        )
 
     state["all_dates_inventory"] = inventory_history
     latest = inventory_history[-1]
@@ -63,6 +67,6 @@ def inventory_agent(state: State):
     state["next_day_inventory"] = {
         "date": (latest_date + timedelta(days=1)).strftime("%Y-%m-%d"),
         "current_stock": predicted_stock,
-        "quantity_sold": latest["quantity_sold"]
+        "quantity_sold": latest["quantity_sold"],
     }
     return state
