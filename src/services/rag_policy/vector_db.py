@@ -1,39 +1,27 @@
-import os
 from pathlib import Path
-from dotenv import load_dotenv
-load_dotenv()
 
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-import threading
 
-CHROMA_DIR = Path(__file__).resolve().parent / "chroma_db_genai"
+BASE_DIR = Path(__file__).resolve().parent
 
-_VECTOR_DB = None
-_db_lock = threading.Lock()
+DB_PATH = BASE_DIR / "chroma_db"
 
 
-def _ensure_vector_store() -> None:
-    if not CHROMA_DIR.exists() or not any(CHROMA_DIR.iterdir()):
-        from .ingest import main as build_policy_db
+def load_vector_db():
 
-        print("Chroma vector store not found. Building from policy documents...")
-        build_policy_db()
+    embedding_model = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        model_kwargs={"device": "cpu"},
+        encode_kwargs={"normalize_embeddings": True}
+    )
 
+    vector_db = Chroma(
+        persist_directory=str(DB_PATH),
+        embedding_function=embedding_model
+    )
 
-def get_vector_db() -> Chroma:
-    global _VECTOR_DB
-    if _VECTOR_DB is None:
-        with _db_lock:
-            if _VECTOR_DB is None:
-                _ensure_vector_store()
-                api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "dummy"
-                embedding_model = GoogleGenerativeAIEmbeddings(
-                    model="models/gemini-embedding-2",
-                    google_api_key=api_key
-                )
-                _VECTOR_DB = Chroma(
-                    persist_directory=str(CHROMA_DIR),
-                    embedding_function=embedding_model,
-                )
-    return _VECTOR_DB
+    print(f"Database Path: {DB_PATH}")
+    print(f"Documents in DB: {vector_db._collection.count()}")
+
+    return vector_db
