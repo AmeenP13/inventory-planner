@@ -1,10 +1,9 @@
 from datetime import datetime, timedelta
-
-from sqlalchemy import func
+import requests
 
 from state import State
-from src.backend.database import get_db_session
-from src.backend.models import ProductORM, InventoryDailyORM, SalesORM
+
+BASE_URL = "http://127.0.0.1:8000"
 
 
 def inventory_agent(state: State):
@@ -20,78 +19,97 @@ def inventory_agent(state: State):
         else str(last_msg).strip().lower()
     )
 
-    with get_db_session() as db:
+    try:
+    
+        response = requests.get(
+            f"{BASE_URL}/api/products",
+            timeout=10,
+        )
+        response.raise_for_status()
+        products = response.json()
 
-        rows = (
-            db.query(
-                ProductORM.product_id,
-                InventoryDailyORM.date,
-                ProductORM.product_name,
-                InventoryDailyORM.current_stock,
-                func.coalesce(
-                    SalesORM.quantity_sold, 0
-                ).label("quantity_sold"),
-                ProductORM.supplier_id,
-                ProductORM.avg_lead_time_day,
-                ProductORM.cost_price,
-                ProductORM.base_price,
-                func.coalesce(
-                    SalesORM.customer_rating, 0.0
-                ).label("customer_rating"),
-                InventoryDailyORM.expiry_date,
-            )
-            .join(
-                ProductORM,
-                InventoryDailyORM.product_id == ProductORM.product_id,
-            )
-            .outerjoin(
-                SalesORM,
-                (InventoryDailyORM.product_id == SalesORM.product_id)
-                & (InventoryDailyORM.date == SalesORM.date),
-            )
-            .filter(
-                func.lower(func.trim(ProductORM.product_name)) == product_name
-            )
-            .order_by(InventoryDailyORM.date)
-            .all()
+        product = next(
+            (
+                p for p in products
+                if p["product_name"].strip().lower() == product_name
+            ),
+            None,
         )
 
-    if not rows:
-        state["error"] = f"Product '{product_name}' not found."
+        if not product:
+            state["error"] = f"Product '{product_name}' not found."
+            return state
+
+        product_id = product["product_id"]
+
+    
+        response = requests.get(
+            f"{BASE_URL}/api/inventory",
+            params={"product_id": product_id},
+            timeout=10,
+        )
+        response.raise_for_status()
+        inventory = response.json()
+
+
+        response = requests.get(
+            f"{BASE_URL}/api/sales",
+            params={"product_id": product_id},
+            timeout=10,
+        )
+        response.raise_for_status()
+        sales = response.json()
+
+    except requests.exceptions.RequestException as e:
+        state["error"] = f"Backend API Error: {e}"
         return state
+
+    if not inventory:
+        state["error"] = "No inventory history found."
+        return state
+
+    sales_lookup = {
+        row["date"]: row
+        for row in sales
+    }
 
     inventory_history = []
 
-    for row in rows:
+    for row in inventory:
+
+        sale = sales_lookup.get(row["date"], {})
+
         inventory_history.append(
             {
-                "product_id": row.product_id,
-                "date": row.date,
-                "product_name": row.product_name,
-                "current_stock": int(row.current_stock),
-                "quantity_sold": int(row.quantity_sold),
-                "supplier_id": row.supplier_id,
-                "avg_lead_time_day": int(row.avg_lead_time_day),
-                "lead_time": int(row.avg_lead_time_day),   # optional alias
-                "cost_price": float(row.cost_price),
-                "base_price": float(row.base_price),
-                "customer_rating": float(row.customer_rating),
-                "expiry_date": row.expiry_date,
+                "product_id": product_id,
+                "product_name": product["product_name"],
+                "date": row["date"],
+                "current_stock": row["current_stock"],
+                "quantity_sold": sale.get("quantity_sold", 0),
+                "customer_rating": sale.get("customer_rating", 0.0),
+                "supplier_id": product["supplier_id"],
+                "avg_lead_time_day": product["avg_lead_time_day"],
+                "lead_time": product["avg_lead_time_day"],
+                "cost_price": product["cost_price"],
+                "base_price": product["base_price"],
+                "expiry_date": row.get("expiry_date"),
             }
         )
 
     state["all_dates_inventory"] = inventory_history
 
     latest = inventory_history[-1]
+
     state["inventory"] = latest
 
     latest_date = datetime.strptime(
-        latest["date"], "%Y-%m-%d"
+        latest["date"],
+        "%Y-%m-%d",
     )
 
     predicted_stock = max(
         0,
-        latest["current_stock"] - latest["quantity_sold"]
+        latest["current_stock"] - latest["quantity_sold"],
     )
 
     state["next_day_inventory"] = {
