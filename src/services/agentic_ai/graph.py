@@ -1,54 +1,43 @@
-from langgraph.graph import END, START, StateGraph
-from src.services.agentic_ai.agents.demand_agent import demand_agent
+from src.services.agentic_ai.state import State
+from langgraph.graph import StateGraph,START,END
 from src.services.agentic_ai.agents.inventory_agent import inventory_agent
+from src.services.agentic_ai.agents.demand_agent import demand_agent
+from src.services.agentic_ai.agents.risk_agent import risk_analysis
 from src.services.agentic_ai.agents.rag_agent import rag_agent
 from src.services.agentic_ai.agents.recommendation import recommendation_agent
-from src.services.agentic_ai.agents.risk_agent import risk_analysis
-from src.services.agentic_ai.state import State
-
-NODE_INVENTORY = "inventory"
-NODE_DEMAND = "demand"
-NODE_RISK = "risk"
-NODE_RAG = "rag"
-NODE_RECOMMENDATION = "recommendation"
 
 
-def _route_after_risk(state: State):
-    if state.get("error"):
-        return NODE_RECOMMENDATION
+def route_after_risk(state:State):
+    if state.get('error'):
+        return 'recommendation'
+    
+    risk=state.get('risk','').lower()
+    if risk in ['high','medium']:
+        return 'rag'
+    return 'recommendation'
 
-    risk_level = state.get("risk", "Low").lower()
-    if risk_level in {"high", "medium"}:
-        return NODE_RAG
-    return NODE_RECOMMENDATION
+builder=StateGraph(State)
 
+builder.add_node('inventory',inventory_agent)
+builder.add_node('demand',demand_agent)
+builder.add_node('risk',risk_analysis)
+builder.add_node('rag',rag_agent)
+builder.add_node('recommendation',recommendation_agent)
 
-def _build_graph():
-    builder = StateGraph(State)
+builder.add_edge(START,'inventory')
+builder.add_edge('inventory','demand')
+builder.add_edge('demand','risk')
+builder.add_conditional_edges (
+    'risk',
+    route_after_risk,
+    {
+        'rag':'rag',
+        'recommendation':'recommendation',
+    },
+)
 
-    builder.add_node(NODE_INVENTORY, inventory_agent)
-    builder.add_node(NODE_DEMAND, demand_agent)
-    builder.add_node(NODE_RISK, risk_analysis)
-    builder.add_node(NODE_RAG, rag_agent)
-    builder.add_node(NODE_RECOMMENDATION, recommendation_agent)
+builder.add_edge('rag','recommendation')
+builder.add_edge('recommendation',END)
 
-    builder.add_edge(START, NODE_INVENTORY)
-    builder.add_edge(NODE_INVENTORY, NODE_DEMAND)
-    builder.add_edge(NODE_DEMAND, NODE_RISK)
+graph=builder.compile()
 
-    builder.add_conditional_edges(
-        NODE_RISK,
-        _route_after_risk,
-        {
-            NODE_RAG: NODE_RAG,
-            NODE_RECOMMENDATION: NODE_RECOMMENDATION,
-        },
-    )
-
-    builder.add_edge(NODE_RAG, NODE_RECOMMENDATION)
-    builder.add_edge(NODE_RECOMMENDATION, END)
-
-    return builder.compile()
-
-
-graph = _build_graph()
