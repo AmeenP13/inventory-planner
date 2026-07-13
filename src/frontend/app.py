@@ -995,7 +995,7 @@ if selected_page == "Overview":
                     <div style="font-weight: 700; color: #1C3D5A; font-size: 12.5px; margin-bottom: 5px; display: flex; align-items: center; gap: 6px;">
                         <span>⚡</span> Restock Recommendation
                     </div>
-                    <div style="font-size: 11.5px; color: #4A607A; line-height: 1.4; margin-bottom: 10px;">{d["text"]}</div>
+                    <div style="font-size: 11.5px; color: #4A607A; line-height: 1.5; margin-bottom: 10px; word-break: break-word; overflow-wrap: anywhere; white-space: normal;">{d["text"]}</div>
                     <div style="font-size: 11px; font-weight: 600; color: #E63946; margin-bottom: 12px;">⏰ {d["timer"]}</div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                         <a href="/?action=restock&product_id={d['product_id']}&qty={d['quantity']}&supplier={d['supplier_id']}" target="_self" style="display: block; text-align: center; background-color: #10B981; color: white; padding: 6px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11.5px;">Yes</a>
@@ -1022,9 +1022,9 @@ if selected_page == "Overview":
             """
 
         st.html(f"""
-        <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 20px; min-height: 520px; display: flex; flex-direction: column;">
+        <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 20px; min-height: 520px; display: flex; flex-direction: column; overflow: hidden;">
             <div style="font-weight: 700; color: #1C3D5A; font-size: 17px; margin-bottom: 15px; text-align: left;">Critical Alerts</div>
-            {alerts_html}
+            <div style="flex: 1; overflow-y: auto; max-height: 700px;">{alerts_html}</div>
         </div>
         """)
 
