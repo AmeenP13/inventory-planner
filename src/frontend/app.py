@@ -90,8 +90,8 @@ if "notified_low_stock" not in st.session_state:
 
 
 # Dynamic badge: count items needing attention from live inventory
-if "inventory_db" in st.session_state:
-    _badge_df = st.session_state.inventory_db
+_badge_df = st.session_state.get("inventory_db", pd.DataFrame())
+if not _badge_df.empty and "status" in _badge_df.columns:
     inventory_badge_count = int(len(_badge_df[_badge_df["status"].isin(["CRITICAL", "LOW STOCK", "OUT OF STOCK"])]))
 else:
     inventory_badge_count = len([x for x in inventory_data if x.get("status") in ["CRITICAL", "LOW STOCK", "OUT OF STOCK"]]) if inventory_data else 0
@@ -924,25 +924,32 @@ if selected_page == "Overview":
             </div>
             """
 
-        st.markdown(f"""
+        st.html(f"""
         <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 20px; min-height: 520px; display: flex; flex-direction: column;">
             <div style="font-weight: 700; color: #1C3D5A; font-size: 17px; margin-bottom: 15px; text-align: left;">Critical Alerts</div>
             {alerts_html}
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
 # ----------------------------------------------------
 # PAGE B: INVENTORY
 # ----------------------------------------------------
 elif selected_page == "Inventory":
-    df_inv = st.session_state.inventory_db
+    df_inv = st.session_state.get("inventory_db", pd.DataFrame())
 
     # Calculate Dynamic KPI Metrics
-    total_items = len(df_inv)
-    low_stock = len(df_inv[df_inv["status"] == "LOW STOCK"])
-    out_of_stock = len(df_inv[df_inv["status"] == "OUT OF STOCK"])
-    healthy = len(df_inv[df_inv["status"] == "HEALTHY"])
-    avg_days = round(df_inv["days_left"].mean(), 1)
+    if df_inv.empty or "status" not in df_inv.columns:
+        total_items = 0
+        low_stock = 0
+        out_of_stock = 0
+        healthy = 0
+        avg_days = 0.0
+    else:
+        total_items = len(df_inv)
+        low_stock = len(df_inv[df_inv["status"] == "LOW STOCK"])
+        out_of_stock = len(df_inv[df_inv["status"] == "OUT OF STOCK"])
+        healthy = len(df_inv[df_inv["status"] == "HEALTHY"])
+        avg_days = round(df_inv["days_left"].mean(), 1) if "days_left" in df_inv.columns else 0.0
 
     # Inventory KPI Cards
     col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
@@ -1790,7 +1797,7 @@ elif selected_page == "AI_Agent":
                 </div>
             </div>
             """
-            placeholder.markdown(loading_card_html, unsafe_allow_html=True)
+            placeholder.html(loading_card_html)
 
             if i == 2:
                 # Actual backend API trigger
@@ -1828,7 +1835,7 @@ elif selected_page == "AI_Agent":
             </div>
         </div>
         """
-        placeholder.markdown(loading_card_html, unsafe_allow_html=True)
+        placeholder.html(loading_card_html)
         time.sleep(0.05)
 
         placeholder.empty()
@@ -1840,6 +1847,11 @@ elif selected_page == "AI_Agent":
         "proposal_db",
         agent_proposal.get("recommendations", []))
 
+    # Safe fallback keys for empty dictionary
+    proposal_timestamp = agent_proposal.get("timestamp", "N/A")
+    proposal_confidence = agent_proposal.get("confidence", "0")
+    proposal_rag_context = agent_proposal.get("rag_policy_context", "No RAG policy retrieved.")
+
     # 1. Proposal Banner with interactive re-run button
     col_banner_info, col_banner_btn = st.columns([3.2, 0.8])
     with col_banner_info:
@@ -1847,7 +1859,7 @@ elif selected_page == "AI_Agent":
         <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(28,61,90,0.01); height: 85px;">
             <div>
                 <div style="font-weight: 700; font-size: 17px; color: #1C3D5A;">AI Replenishment Proposal</div>
-                <div style="font-size: 12px; color: #8CA0B8; margin-top: 4px;">Generated: {agent_proposal["timestamp"]} • Confidence: <span style="color: #10B981; font-weight: 700;">{agent_proposal["confidence"]}%</span></div>
+                <div style="font-size: 12px; color: #8CA0B8; margin-top: 4px;">Generated: {proposal_timestamp} • Confidence: <span style="color: #10B981; font-weight: 700;">{proposal_confidence}%</span></div>
             </div>
             <div>
                 <span style="background-color: #D1FAE5; color: #10B981; border: 1px solid #10B98130; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
@@ -1879,15 +1891,15 @@ elif selected_page == "AI_Agent":
             st.rerun()
 
     # 2. RAG policy context log card
-    st.markdown(f"""
+    st.html(f"""
     <div style="background-color: #FFF9E6; border: 1px solid #FFE0B2; border-radius: 8px; padding: 15px 20px; display: flex; align-items: flex-start; gap: 15px; margin-bottom: 25px;">
         <div style="font-size: 24px; margin-top: -2px;">📚</div>
         <div>
             <div style="font-weight: 700; color: #D97706; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;">RAG POLICY CONTEXT RETRIEVED</div>
-            <div style="font-size: 13px; color: #78350F; line-height: 1.5;">{agent_proposal["rag_policy_context"]}</div>
+            <div style="font-size: 13px; color: #78350F; line-height: 1.5;">{proposal_rag_context}</div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
     # Define tabs for Day 4 task
     tab_orders, tab_report = st.tabs(
