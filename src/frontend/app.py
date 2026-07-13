@@ -873,13 +873,8 @@ if selected_page == "Overview":
             scrolling=False)
 
     with col_alerts:
-        # Critical Alerts Panel
-        st.markdown("""
-        <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 20px; min-height: 520px; display: flex; flex-direction: column;">
-            <div style="font-weight: 700; color: #1C3D5A; font-size: 17px; margin-bottom: 15px;">Critical Alerts</div>
-        """, unsafe_allow_html=True)
-
-        # Alert List rendering
+        # Critical Alerts Panel rendered in a single robust container
+        alerts_html = ""
         for item in overview_data.get("alerts", []):
             is_critical = item["status"] == "CRITICAL"
             badge_color = "#E63946" if is_critical else (
@@ -890,9 +885,25 @@ if selected_page == "Overview":
             # Draw progress bar for alerts
             progress_pct = min(100.0, (item["days_left"] / 14.0) * 100.0)
 
-            # Render Alert Card first
-            st.markdown(f"""
-            <div style="background-color: #F8FAFC; border: 1px solid #E4EDF5; border-radius: 8px; padding: 12px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px;">
+            # Draw recommendation block if applicable
+            dialog_html = ""
+            if "dialog" in item:
+                dialog_html = f"""
+                <div style="background-color: #EBF3FC; border: 1px solid #BFE3F9; border-radius: 8px; padding: 12px; text-align: left; box-shadow: 0 4px 6px rgba(0, 168, 198, 0.04); margin-top: 8px; margin-bottom: 4px;">
+                    <div style="font-weight: 700; color: #1C3D5A; font-size: 12.5px; margin-bottom: 5px; display: flex; align-items: center; gap: 6px;">
+                        <span>⚡</span> Restock Recommendation
+                    </div>
+                    <div style="font-size: 11.5px; color: #4A607A; line-height: 1.4; margin-bottom: 10px;">{item["dialog"]["text"]}</div>
+                    <div style="font-size: 11px; font-weight: 600; color: #E63946; margin-bottom: 12px;">⏰ {item["dialog"]["timer"]}</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <a href="/?page=AI_Agent&run=true" target="_self" style="display: block; text-align: center; background-color: #00A8C6; color: white; padding: 6px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11.5px;">Yes, Run AI</a>
+                        <a href="/?page=Overview" target="_self" style="display: block; text-align: center; background-color: #E2E8F0; color: #4A607A; padding: 6px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11.5px;">Dismiss</a>
+                    </div>
+                </div>
+                """
+
+            alerts_html += f"""
+            <div style="background-color: #F8FAFC; border: 1px solid #E4EDF5; border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; text-align: left;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-weight: 700; font-size: 13px; color: #1C3D5A; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{item["product"]}">{item["product"]}</span>
                     <span style="background-color: {badge_bg}; color: {badge_color}; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid {badge_color}30;">{item["status"]}</span>
@@ -904,41 +915,16 @@ if selected_page == "Overview":
                 <div style="background-color: #E2E8F0; width: 100%; height: 4px; border-radius: 2px; overflow: hidden;">
                     <div style="background-color: {badge_color}; width: {progress_pct}%; height: 100%;"></div>
                 </div>
+                {dialog_html}
             </div>
-            """, unsafe_allow_html=True)
+            """
 
-            # If it has dialog block, render it
-            if "dialog" in item:
-                st.markdown(f"""
-                <div style="background-color: #EBF3FC; border: 1px solid #BFE3F9; border-radius: 8px; padding: 15px; text-align: left; box-shadow: 0 4px 6px rgba(0, 168, 198, 0.08); margin-bottom: 12px;">
-                    <div style="font-weight: 700; color: #1C3D5A; font-size: 13px; margin-bottom: 5px; display: flex; align-items: center; gap: 6px;">
-                        <span>⚡</span> Restock Recommendation
-                    </div>
-                    <div style="font-size: 12px; color: #4A607A; line-height: 1.4; margin-bottom: 8px;">{item["dialog"]["text"]}</div>
-                    <div style="font-size: 11px; font-weight: 600; color: #E63946; margin-bottom: 2px;">⏰ {item["dialog"]["timer"]}</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Interactive Restock Buttons
-                btn_yes, btn_no = st.columns(2)
-                with btn_yes:
-                    if st.button(
-                        "Yes",
-                        key="alert_restock_yes",
-                            use_container_width=True):
-                        st.toast(
-                            "🤖 AI Replenishment process triggered!", icon="⚡")
-                        st.query_params["page"] = "AI_Agent"
-                        st.query_params["run"] = "true"
-                        st.rerun()
-                with btn_no:
-                    if st.button(
-                        "No",
-                        key="alert_restock_no",
-                            use_container_width=True):
-                        st.toast("Replenishment dialog dismissed.")
-
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 20px; min-height: 520px; display: flex; flex-direction: column;">
+            <div style="font-weight: 700; color: #1C3D5A; font-size: 17px; margin-bottom: 15px; text-align: left;">Critical Alerts</div>
+            {alerts_html}
+        </div>
+        """, unsafe_allow_html=True)
 
 # ----------------------------------------------------
 # PAGE B: INVENTORY
@@ -2160,49 +2146,81 @@ elif selected_page == "AI_Agent":
     with tab_report:
         col_report_left, col_report_right = st.columns([1.8, 1.2])
 
+        # Simple local markdown to HTML converter to render memo report in a single block
+        def local_markdown_to_html(md_text):
+            if not md_text:
+                return ""
+            import re
+            html = md_text
+            # Convert headers
+            html = re.sub(r'^### (.*?)$', r'<h3 style="color: #1C3D5A; margin-top: 15px; margin-bottom: 10px;">\1</h3>', html, flags=re.MULTILINE)
+            html = re.sub(r'^#### (.*?)$', r'<h4 style="color: #4A607A; margin-top: 12px; margin-bottom: 8px;">\1</h4>', html, flags=re.MULTILINE)
+            # Convert bold
+            html = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', html)
+            # Convert horizontal rule
+            html = html.replace("---\n", '<hr style="border: 0; border-top: 1px solid #E4EDF5; margin: 15px 0;">')
+            # Convert bullet items
+            html = re.sub(r'^\*\s+(.*?)$', r'<li style="margin-left: 20px; margin-bottom: 6px;">\1</li>', html, flags=re.MULTILINE)
+            html = re.sub(r'^\d+\.\s+(.*?)$', r'<li style="margin-left: 20px; margin-bottom: 6px; list-style-type: decimal;">\1</li>', html, flags=re.MULTILINE)
+            # Convert code formatting
+            html = re.sub(r'`(.*?)`', r'<code style="background-color: #F8FAFC; border: 1px solid #E4EDF5; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 13px; color: #E63946;">\1</code>', html)
+            # Convert newlines to breaks
+            html = html.replace("\n", "<br>")
+            return html
+
         with col_report_left:
-            st.markdown(f"""
+            exec_html_content = local_markdown_to_html(agent_proposal.get("executive_report", ""))
+            memo_html = f"""
             <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px rgba(28, 61, 90, 0.02); min-height: 520px; color: #1C3D5A;">
                 <div style="font-size: 18px; font-weight: 700; color: #1C3D5A; border-bottom: 2px solid #E4EDF5; padding-bottom: 12px; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
                     <span>📄</span> Procurement Agent Memo
                 </div>
-            """, unsafe_allow_html=True)
-            st.markdown(agent_proposal.get("executive_report", ""))
-            st.markdown("</div>", unsafe_allow_html=True)
+                <div style="font-size: 14px; line-height: 1.6; color: #1C3D5A;">
+                    {exec_html_content}
+                </div>
+            </div>
+            """
+            st.markdown(memo_html, unsafe_allow_html=True)
 
         with col_report_right:
-            st.markdown("""
-            <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(28, 61, 90, 0.02); min-height: 520px; color: #1C3D5A;">
-                <div style="font-size: 16px; font-weight: 700; color: #1C3D5A; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
-                    <span>🧠</span> LangGraph Node Tracing
-                </div>
-            """, unsafe_allow_html=True)
-
-            for node_idx, step in enumerate(
-                agent_proposal.get(
-                    "cognitive_reasoning_log", [])):
+            traces_html = ""
+            steps_list = agent_proposal.get("cognitive_reasoning_log", [])
+            for node_idx, step in enumerate(steps_list):
                 node_name = step["node"]
                 node_msg = step["message"]
                 node_step = step["step"]
                 node_status = step["status"]
 
-                st.markdown(f"""
-                <div style="display: flex; gap: 12px; position: relative; margin-bottom: 18px;">
-                    {"<div style='position: absolute; left: 15px; top: 30px; bottom: -30px; width: 2px; background-color: #00A8C630; z-index: 1;'></div>" if node_idx < len(agent_proposal.get("cognitive_reasoning_log", [])) - 1 else ""}
+                status_bg = "#D1FAE5" if node_status == "COMPLETED" else "#FEF3C7"
+                status_fg = "#10B981" if node_status == "COMPLETED" else "#D97706"
+                
+                line_html = f"<div style='position: absolute; left: 15px; top: 30px; bottom: -30px; width: 2px; background-color: #00A8C630; z-index: 1;'></div>" if node_idx < len(steps_list) - 1 else ""
+
+                traces_html += f"""
+                <div style="display: flex; gap: 12px; position: relative; margin-bottom: 18px; text-align: left;">
+                    {line_html}
                     <div style="width: 30px; height: 30px; border-radius: 50%; background-color: #EBF3FC; border: 2.5px solid #00A8C6; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #00A8C6; z-index: 2; flex-shrink: 0;">
                         {node_step}
                     </div>
                     <div style="background-color: #F8FAFC; border: 1px solid #E4EDF5; border-radius: 8px; padding: 12px; width: 100%;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                             <span style="font-family: monospace; font-weight: 700; font-size: 12px; color: #1C3D5A;">{node_name}</span>
-                            <span style="background-color: #D1FAE5; color: #10B981; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 4px; border: 1px solid #10B98120;">{node_status}</span>
+                            <span style="background-color: {status_bg}; color: {status_fg}; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 4px; border: 1px solid {status_fg}20;">{node_status}</span>
                         </div>
                         <div style="font-size: 11.5px; color: #5B7A9C; line-height: 1.4;">{node_msg}</div>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
+                """
 
-            st.markdown("</div>", unsafe_allow_html=True)
+            right_card_html = f"""
+            <div style="background-color: #FFFFFF; border: 1px solid #E4EDF5; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(28, 61, 90, 0.02); min-height: 520px; color: #1C3D5A;">
+                <div style="font-size: 16px; font-weight: 700; color: #1C3D5A; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                    <span>🧠</span> LangGraph Node Tracing
+                </div>
+                {traces_html}
+            </div>
+            """
+            st.markdown(right_card_html, unsafe_allow_html=True)
 
 
 
