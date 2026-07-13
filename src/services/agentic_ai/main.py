@@ -16,7 +16,7 @@ def main():
     print('Autonomous AI Inventory')
     
     while True:
-        user_input=input('Enter Product Name (or Type Exit):')
+        user_input=input('Enter Product Names (or Type Exit):')
         
         if user_input.strip().lower() in{'quit','exit','bye'}:
             print('Exiting Browser')
