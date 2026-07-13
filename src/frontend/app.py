@@ -810,6 +810,10 @@ st.markdown(f"""
 if selected_page == "Overview":
     # Load Overview Data
     summary = overview_data.get("summary", {})
+    
+    # Safe helper to fetch nested summary dictionary values
+    def get_kpi(key, subkey, default="N/A"):
+        return summary.get(key, {}).get(subkey, default)
 
     # KPI Row
     col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
@@ -818,8 +822,8 @@ if selected_page == "Overview":
         st.markdown(
             render_kpi_card(
                 "Total SKUs",
-                summary["total_skus"]["value"],
-                summary["total_skus"]["change"],
+                get_kpi("total_skus", "value", 0),
+                get_kpi("total_skus", "change", ""),
                 "Across 9 categories",
                 "📦",
                 "default"),
@@ -828,9 +832,9 @@ if selected_page == "Overview":
         st.markdown(
             render_kpi_card(
                 "Needs Action",
-                summary["needs_action"]["value"],
-                summary["needs_action"]["change"],
-                summary["needs_action"]["detail"],
+                get_kpi("needs_action", "value", 0),
+                get_kpi("needs_action", "change", ""),
+                get_kpi("needs_action", "detail", ""),
                 "⚠️",
                 "yellow"),
             unsafe_allow_html=True)
@@ -838,9 +842,9 @@ if selected_page == "Overview":
         st.markdown(
             render_kpi_card(
                 "Avg Daily Velocity",
-                summary["avg_velocity"]["value"],
-                summary["avg_velocity"]["change"],
-                summary["avg_velocity"]["detail"],
+                get_kpi("avg_velocity", "value", 0.0),
+                get_kpi("avg_velocity", "change", ""),
+                get_kpi("avg_velocity", "detail", ""),
                 "📈",
                 "green"),
             unsafe_allow_html=True)
@@ -848,9 +852,9 @@ if selected_page == "Overview":
         st.markdown(
             render_kpi_card(
                 "Avg SKUs",
-                summary["avg_skus"]["value"],
-                summary["avg_skus"]["change"],
-                summary["avg_skus"]["detail"],
+                get_kpi("avg_skus", "value", 0),
+                get_kpi("avg_skus", "change", ""),
+                get_kpi("avg_skus", "detail", ""),
                 "⏱️",
                 "default"),
             unsafe_allow_html=True)
@@ -858,8 +862,8 @@ if selected_page == "Overview":
         st.markdown(
             render_kpi_card(
                 "Critical Alerts",
-                summary["critical_alerts"]["value"],
-                summary["critical_alerts"]["change"],
+                get_kpi("critical_alerts", "value", 0),
+                get_kpi("critical_alerts", "change", ""),
                 "Urgent attention",
                 "🚨",
                 "red"),
