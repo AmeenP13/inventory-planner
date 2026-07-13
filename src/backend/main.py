@@ -145,10 +145,11 @@ def update_inventory(update: InventoryUpdate, db: Session = Depends(database.get
         db.add(record)
     
     db.commit()
-    global _PROPOSAL_CACHE, _REPORT_CACHE, _OVERVIEW_CACHE
+    global _PROPOSAL_CACHE, _REPORT_CACHE, _OVERVIEW_CACHE, _RAW_DF_CACHE
     _PROPOSAL_CACHE = None
     _REPORT_CACHE = None
     _OVERVIEW_CACHE = None
+    _RAW_DF_CACHE = None
     return {
         "status": "ok",
         "message": f"Inventory updated for product {update.product_id} on {update.date}"
@@ -162,10 +163,11 @@ def approve_order(order: OrderApproval, db: Session = Depends(database.get_db)):
         raise HTTPException(
             status_code=404, detail=f"Product {order.product_id} not found")
 
-    global _PROPOSAL_CACHE, _REPORT_CACHE, _OVERVIEW_CACHE
+    global _PROPOSAL_CACHE, _REPORT_CACHE, _OVERVIEW_CACHE, _RAW_DF_CACHE
     _PROPOSAL_CACHE = None
     _REPORT_CACHE = None
     _OVERVIEW_CACHE = None
+    _RAW_DF_CACHE = None
     return {
         "status": "approved",
         "product_id": order.product_id,
@@ -199,6 +201,7 @@ def get_dead_stock(days: int = 14, max_units_sold: int = 5, db: Session = Depend
 _PROPOSAL_CACHE = None
 _REPORT_CACHE = None
 _OVERVIEW_CACHE = None
+_RAW_DF_CACHE = None
 
 
 class ReplenishRequest(BaseModel):
@@ -254,10 +257,10 @@ def get_product_category(name: str) -> str:
     return "Groceries"
 
 
-def get_combined_report(service_level: float = 0.95):
-    global _REPORT_CACHE
-    if _REPORT_CACHE is not None:
-        return _REPORT_CACHE
+def get_raw_and_aggregated_data(service_level: float = 0.95):
+    global _RAW_DF_CACHE, _REPORT_CACHE
+    if _REPORT_CACHE is not None and _RAW_DF_CACHE is not None:
+        return _RAW_DF_CACHE, _REPORT_CACHE
 
     from src.services.analytics.inventory_management import build_report
     from .database import get_db_session
@@ -293,7 +296,12 @@ def get_combined_report(service_level: float = 0.95):
 
     report = build_report(df, service_level=service_level)
     _REPORT_CACHE = report
-    return report
+    _RAW_DF_CACHE = df
+    return df, report
+
+
+def get_combined_report(service_level: float = 0.95):
+    return get_raw_and_aggregated_data(service_level)[1]
 
 
 @app.get("/api/overview")
@@ -424,14 +432,24 @@ def get_inventory_report():
             row["days_of_stock_left"])
         status = "OUT OF STOCK" if row["stock_status"] == "OUT_OF_STOCK" else (
             "LOW STOCK" if row["stock_status"] == "LOW_STOCK" else "HEALTHY")
+        
+        exp_val = None
+        if "nearest_expiry_date" in row and pd.notnull(row["nearest_expiry_date"]):
+            exp_val = row["nearest_expiry_date"].strftime("%Y-%m-%d") if hasattr(row["nearest_expiry_date"], "strftime") else str(row["nearest_expiry_date"])
+        elif "expiry_date" in row and pd.notnull(row["expiry_date"]):
+            exp_val = row["expiry_date"].strftime("%Y-%m-%d") if hasattr(row["expiry_date"], "strftime") else str(row["expiry_date"])
+
         inventory_list.append({
+            "product_id": int(row["product_id"]),
             "sku": f"PRD-{row['product_id']:04d}",
             "product": row["product_name"],
             "stock": int(row["current_stock"]),
             "days_left": days_left,
             "supplier": row["supplier_id"],
             "status": status,
-            "category": get_product_category(row["product_name"])
+            "category": get_product_category(row["product_name"]),
+            "date": row["date"].strftime("%Y-%m-%d") if pd.notnull(row.get("date")) and hasattr(row["date"], "strftime") else str(row.get("date", "")),
+            "expiry_date": exp_val
         })
     return inventory_list
 
@@ -702,3 +720,116 @@ def trigger_replenish(request: Optional[ReplenishRequest] = None):
     }
     _PROPOSAL_CACHE = result_payload
     return result_payload
+
+
+# =====================================================================
+# NEW ANALYTICS ENDPOINTS FOR ADVANCED SYSTEM FEATURES
+# =====================================================================
+
+@app.get("/api/analytics/dead_stock")
+def get_analytics_dead_stock(days: int = 90):
+    try:
+        from src.services.analytics.inventory_advance import detect_dead_stock
+        df, report = get_raw_and_aggregated_data()
+        dead_df = detect_dead_stock(df, report, window_days=days)
+        
+        records = []
+        for _, row in dead_df.iterrows():
+            records.append({
+                "product_id": int(row["product_id"]),
+                "sku": f"PRD-{row['product_id']:04d}",
+                "product": row["product_name"],
+                "supplier": row["supplier_id"],
+                "stock": int(row["current_stock"]),
+                "units_sold_last_90d": int(row["units_sold_last_90d"]),
+                "days_of_history": int(row["days_of_history"]),
+                "is_dead_stock": bool(row["is_dead_stock"]),
+                "cost_price": float(row["cost_price"]),
+                "base_price": float(row["base_price"]),
+                "suggested_markdown_price": float(row["suggested_markdown_price"]) if pd.notnull(row["suggested_markdown_price"]) else None,
+                "holding_cost_exposure": float(row["holding_cost_exposure"])
+            })
+        return records
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dead stock calculation failed: {e}")
+
+
+@app.get("/api/analytics/supplier_scorecard")
+def get_analytics_supplier_scorecard():
+    try:
+        from src.services.analytics.inventory_advance import build_supplier_scorecard
+        report = get_combined_report()
+        scorecard = build_supplier_scorecard(report)
+        
+        records = []
+        for _, row in scorecard.iterrows():
+            records.append({
+                "rank": int(row["rank"]),
+                "supplier_id": row["supplier_id"],
+                "products_supplied": int(row["products_supplied"]),
+                "avg_lead_time_day": float(row["avg_lead_time_day"]),
+                "avg_cost_price": float(row["avg_cost_price"]),
+                "lead_time_score": float(row["lead_time_score"]),
+                "cost_score": float(row["cost_score"]),
+                "supplier_score": float(row["supplier_score"])
+            })
+        return records
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Supplier scorecard calculation failed: {e}")
+
+
+@app.get("/api/analytics/supplier_alternatives")
+def get_analytics_supplier_alternatives():
+    try:
+        from src.services.analytics.inventory_advance import build_supplier_scorecard, flag_supplier_alternatives
+        report = get_combined_report()
+        scorecard = build_supplier_scorecard(report)
+        alternatives = flag_supplier_alternatives(report, scorecard)
+        
+        records = []
+        if not alternatives.empty:
+            for _, row in alternatives.iterrows():
+                records.append({
+                    "product_id": int(row["product_id"]),
+                    "sku": row["sku"] if "sku" in row else f"PRD-{row['product_id']:04d}",
+                    "product": row["product_name"],
+                    "supplier_id": row["supplier_id"],
+                    "current_supplier_score": float(row["current_supplier_score"]) if pd.notnull(row["current_supplier_score"]) else None,
+                    "best_alt_supplier": row["best_alt_supplier"],
+                    "best_alt_supplier_score": float(row["best_alt_supplier_score"]) if pd.notnull(row["best_alt_supplier_score"]) else None,
+                    "better_supplier_available": bool(row["better_supplier_available"]),
+                    "stock_status": row["stock_status"],
+                    "days_of_stock_left": float(row["days_of_stock_left"]) if pd.notnull(row["days_of_stock_left"]) and row["days_of_stock_left"] != np.inf else 999.0
+                })
+        return records
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Alternative supplier flagging failed: {e}")
+
+
+@app.get("/api/analytics/reorder_plan")
+def get_analytics_reorder_plan(budget: float = 15000.0):
+    try:
+        from src.services.analytics.inventory_advance import build_reorder_plan
+        report = get_combined_report()
+        plan = build_reorder_plan(report, budget=budget)
+        
+        records = []
+        for _, row in plan.iterrows():
+            records.append({
+                "product_id": int(row["product_id"]),
+                "sku": row["sku"] if "sku" in row else f"PRD-{row['product_id']:04d}",
+                "product": row["product_name"],
+                "supplier_id": row["supplier_id"],
+                "stock": int(row["current_stock"]),
+                "reorder_point": float(row["reorder_point"]),
+                "days_left": float(row["days_of_stock_left"]) if pd.notnull(row["days_of_stock_left"]) and row["days_of_stock_left"] != np.inf else 999.0,
+                "status": row["stock_status"],
+                "order_qty": int(row["order_qty"]),
+                "cost_price": float(row["cost_price"]),
+                "order_cost": float(row["order_cost"]),
+                "order_status": row["order_status"],
+                "cumulative_spend": float(row["cumulative_spend"])
+            })
+        return records
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Reorder plan calculation failed: {e}")

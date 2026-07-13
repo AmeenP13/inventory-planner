@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import requests
 
-from state import State
+from src.services.agentic_ai.state import State
 
 BASE_URL = "http://127.0.0.1:8000"
 

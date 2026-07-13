@@ -39,20 +39,35 @@ def get_api_data(endpoint, fallback_filename):
     return load_mock_json(fallback_filename)
 
 
-# Load datasets
-overview_data = get_api_data("/api/overview", "overview_data.json")
-inventory_data = get_api_data("/api/inventory_report", "inventory_data.json")
-demand_data = get_api_data("/api/demand_report", "demand_data.json")
-suppliers_data = get_api_data("/api/suppliers_report", "suppliers_data.json")
+# Load datasets using reload helper and session state caching
+def reload_all_data():
+    st.session_state.overview_data = get_api_data("/api/overview", "overview_data.json")
+    inventory_data = get_api_data("/api/inventory_report", "inventory_data.json")
+    st.session_state.inventory_db = pd.DataFrame(inventory_data)
+    st.session_state.demand_data = get_api_data("/api/demand_report", "demand_data.json")
+    st.session_state.suppliers_data = get_api_data("/api/suppliers_report", "suppliers_data.json")
+
+if "overview_data" not in st.session_state:
+    st.session_state.overview_data = get_api_data("/api/overview", "overview_data.json")
+
+if "inventory_db" not in st.session_state:
+    inventory_data = get_api_data("/api/inventory_report", "inventory_data.json")
+    st.session_state.inventory_db = pd.DataFrame(inventory_data)
+
+if "demand_data" not in st.session_state:
+    st.session_state.demand_data = get_api_data("/api/demand_report", "demand_data.json")
+
+if "suppliers_data" not in st.session_state:
+    st.session_state.suppliers_data = get_api_data("/api/suppliers_report", "suppliers_data.json")
+
+overview_data = st.session_state.overview_data
+inventory_data = st.session_state.inventory_db.to_dict('records') if hasattr(st.session_state.inventory_db, "to_dict") else list(st.session_state.inventory_db)
+demand_data = st.session_state.demand_data
+suppliers_data = st.session_state.suppliers_data
 
 if "agent_proposal" not in st.session_state:
     st.session_state.agent_proposal = get_api_data(
         "/api/proposal", "agent_proposal.json")
-
-# Initialize session state for database persistence (so UI buttons update
-# state)
-if "inventory_db" not in st.session_state and inventory_data:
-    st.session_state.inventory_db = pd.DataFrame(inventory_data)
 
 if "proposal_db" not in st.session_state and st.session_state.agent_proposal:
     st.session_state.proposal_db = st.session_state.agent_proposal["recommendations"]
@@ -1178,28 +1193,52 @@ elif selected_page == "Inventory":
 
         # ── Inline Stock Edit Form ────────────────────────────────────────────
         if st.session_state.get(f"_edit_{_sku}", False):
-            _ec1, _ec2, _ec3 = st.columns([3, 1, 0.8])
+            _ec1, _ec2, _ec3, _ec4 = st.columns([1.5, 2.0, 1.0, 0.8])
             with _ec1:
                 _new_stock = st.number_input(
-                    f"Update stock for {_product}",
+                    f"Stock for {_product}",
                     min_value=0, value=_stock, step=1,
-                    key=f"_nsi_{_sku}", label_visibility="collapsed"
+                    key=f"_nsi_{_sku}"
                 )
             with _ec2:
-                if st.button("💾 Save", key=f"_sv_{_sku}", use_container_width=True):
-                    _df = st.session_state.inventory_db
-                    _df.loc[_df['sku'] == _sku, 'stock'] = _new_stock
-                    if _new_stock == 0:       _ns = "OUT OF STOCK"
-                    elif _new_stock <= 15:    _ns = "CRITICAL"
-                    elif _new_stock <= 50:    _ns = "LOW STOCK"
-                    else:                      _ns = "HEALTHY"
-                    _df.loc[_df['sku'] == _sku, 'status'] = _ns
-                    del st.session_state[f"_edit_{_sku}"]
-                    st.toast(f"✅ {_product} updated → {_new_stock} units ({_ns})", icon="📦")
-                    st.rerun()
+                _curr_exp = _row.get("expiry_date", "")
+                if pd.isna(_curr_exp) or _curr_exp is None:
+                    _curr_exp = ""
+                _new_expiry = st.text_input(
+                    f"Expiry Date (YYYY-MM-DD)",
+                    value=str(_curr_exp),
+                    key=f"_nei_{_sku}",
+                    placeholder="YYYY-MM-DD"
+                )
             with _ec3:
+                st.write("") # Spacer to align
+                st.write("") # Spacer to align
+                if st.button("💾 Save", key=f"_sv_{_sku}", use_container_width=True):
+                    product_id = int(_sku.split("-")[1])
+                    _record_date = _row.get("date", "2026-07-09")
+                    try:
+                        resp = requests.post(f"{API_BASE_URL}/api/update_inventory", json={
+                            "product_id": product_id,
+                            "date": _record_date,
+                            "current_stock": int(_new_stock),
+                            "expiry_date": _new_expiry if _new_expiry.strip() else None
+                        }, timeout=10)
+                        if resp.status_code == 200:
+                            st.toast(f"✅ Saved to database: {_product} ({_new_stock} units)", icon="💾")
+                            reload_all_data()
+                            if f"_edit_{_sku}" in st.session_state:
+                                del st.session_state[f"_edit_{_sku}"]
+                            st.rerun()
+                        else:
+                            st.error(f"Failed to update stock: {resp.text}")
+                    except Exception as e:
+                        st.error(f"Error connecting to backend: {e}")
+            with _ec4:
+                st.write("") # Spacer to align
+                st.write("") # Spacer to align
                 if st.button("✕ Cancel", key=f"_cv_{_sku}", use_container_width=True):
-                    del st.session_state[f"_edit_{_sku}"]
+                    if f"_edit_{_sku}" in st.session_state:
+                        del st.session_state[f"_edit_{_sku}"]
                     st.rerun()
 
     # Results summary
@@ -1380,6 +1419,106 @@ elif selected_page == "Demand":
     n_top = len(top_skus)
     components.html(html_top_wrapped, height=68 + n_top * 60, scrolling=False)
 
+    # ── Dead Stock Analysis Panel ──────────────────────────────────────────────
+    st.write("")
+    st.write("")
+    st.markdown("---")
+    st.markdown("""
+    <div style="font-weight: 700; color: #1C3D5A; font-size: 17px; margin-bottom: 2px;">⚠️ Dead Stock & Markdown Recommendations</div>
+    <div style="font-size: 12.5px; color: #5B7A9C; margin-bottom: 15px;">Identify slow-moving stock over a given window and review markdown recommendations to reclaim capital.</div>
+    """, unsafe_allow_html=True)
+    
+    col_d1, col_d2 = st.columns([3, 1])
+    with col_d1:
+        dead_days = st.slider("Zero Sales Window (Days)", min_value=14, max_value=120, value=90, step=1, key="dead_stock_slider")
+    with col_d2:
+        st.write("")
+        st.write("")
+        run_dead_analysis = st.button("🔍 Run Dead Stock Analysis", key="run_dead_stock_btn", use_container_width=True)
+        
+    dead_stock_list = get_api_data(f"/api/analytics/dead_stock?days={dead_days}", "")
+    
+    # Fallback mock list if backend is down or returns empty
+    if not dead_stock_list:
+        dead_stock_list = [
+            {"product_id": 1, "sku": "PRD-0001", "product": "Organic Honey", "supplier": "SUP-001", "stock": 45, "units_sold_last_90d": 0, "days_of_history": 90, "is_dead_stock": True, "cost_price": 5.0, "base_price": 8.0, "suggested_markdown_price": 5.60, "holding_cost_exposure": 225.0},
+            {"product_id": 4, "sku": "PRD-0004", "product": "Fresh Blueberries", "supplier": "SUP-002", "stock": 100, "units_sold_last_90d": 0, "days_of_history": 90, "is_dead_stock": True, "cost_price": 2.50, "base_price": 4.50, "suggested_markdown_price": 3.15, "holding_cost_exposure": 250.0},
+            {"product_id": 8, "sku": "PRD-0008", "product": "Whole Grain Bread", "supplier": "SUP-003", "stock": 10, "units_sold_last_90d": 12, "days_of_history": 90, "is_dead_stock": False, "cost_price": 1.80, "base_price": 3.00, "suggested_markdown_price": None, "holding_cost_exposure": 0.0}
+        ]
+        
+    if dead_stock_list:
+        df_dead = pd.DataFrame(dead_stock_list)
+        is_dead = df_dead[df_dead["is_dead_stock"] == True]
+        total_exposure = is_dead["holding_cost_exposure"].sum() if not is_dead.empty else 0.0
+        dead_skus_count = len(is_dead)
+        
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            st.markdown(render_kpi_card("Tied-up Capital (Dead Stock)", f"${total_exposure:,.2f}", f"{dead_skus_count} slow-moving products", "Valued at cost price", "💰", "red"), unsafe_allow_html=True)
+        with col_m2:
+            st.markdown(render_kpi_card("Markdown Opportunities", f"{dead_skus_count} SKUs", "30% price reduction suggested", "To accelerate sales velocity", "🏷️", "yellow"), unsafe_allow_html=True)
+            
+        st.write("")
+        
+        html_dead = """
+        <div style="overflow-x: auto; background-color: #FFFFFF; border-radius: 12px; border: 1px solid #E4EDF5; box-shadow: 0 2px 4px rgba(28,61,90,0.01);">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+            <thead>
+                <tr style="border-bottom: 2px solid #E4EDF5; background-color: #F8FAFC; color: #5B7A9C; font-weight: 600;">
+                    <th style="padding: 14px 16px;">SKU</th>
+                    <th style="padding: 14px 16px;">Product</th>
+                    <th style="padding: 14px 16px;">Supplier</th>
+                    <th style="padding: 14px 16px;">Stock</th>
+                    <th style="padding: 14px 16px;">Sold (Window)</th>
+                    <th style="padding: 14px 16px;">Holding Cost</th>
+                    <th style="padding: 14px 16px;">Markdown Price</th>
+                    <th style="padding: 14px 16px;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        for row in dead_stock_list:
+            sku = row['sku']
+            product = row['product']
+            supplier = row['supplier']
+            stock = row['stock']
+            sold = row['units_sold_last_90d']
+            holding_cost = row['holding_cost_exposure']
+            markdown_price = row['suggested_markdown_price']
+            is_dead_row = row['is_dead_stock']
+            
+            badge = render_status_badge("CRITICAL" if is_dead_row else "HEALTHY")
+            markdown_str = f"${markdown_price:,.2f}" if markdown_price is not None and pd.notnull(markdown_price) else "N/A"
+            
+            html_dead += f"""
+                <tr style="border-bottom: 1px solid #E4EDF5; color: #1C3D5A; background-color: {'#FFF5F5' if is_dead_row else '#FFFFFF'};">
+                     <td style="padding: 14px 16px; font-weight: 500; font-family: monospace;">{sku}</td>
+                     <td style="padding: 14px 16px; font-weight: 600; color: #1C3D5A;">{product}</td>
+                     <td style="padding: 14px 16px; color: #4A607A;">{supplier}</td>
+                     <td style="padding: 14px 16px; font-weight: 700;">{stock}</td>
+                     <td style="padding: 14px 16px; font-weight: 600;">{sold}</td>
+                     <td style="padding: 14px 16px; font-weight: 700; color: {'#EF4444' if is_dead_row else '#1C3D5A'};">${holding_cost:,.2f}</td>
+                     <td style="padding: 14px 16px; font-weight: 700; color: #10B981;">{markdown_str}</td>
+                     <td style="padding: 14px 16px;">{badge}</td>
+                </tr>
+            """
+        html_dead += """
+            </tbody>
+        </table>
+        </div>
+        """
+        html_dead_wrapped = f"""<!DOCTYPE html><html><head><style>
+        {TABLE_BASE_CSS}
+        table {{ width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }}
+        thead tr {{ background-color: #F8FAFC; border-bottom: 2px solid #E4EDF5; }}
+        th {{ padding: 14px 16px; font-weight: 600; color: #5B7A9C; }}
+        tbody tr {{ border-bottom: 1px solid #E4EDF5; color: #1C3D5A; }}
+        tbody tr:hover {{ background-color: #F8FAFC; }}
+        </style></head><body>
+        {html_dead}
+        </body></html>"""
+        components.html(html_dead_wrapped, height=80 + len(dead_stock_list) * 58, scrolling=False)
+
 # ----------------------------------------------------
 # PAGE D: SUPPLIERS
 # ----------------------------------------------------
@@ -1475,6 +1614,153 @@ elif selected_page == "Suppliers":
         labelColor='#8CA0B8').configure_view(
         strokeWidth=0)
     st.altair_chart(chart_sup, use_container_width=True)
+
+    # ── Supplier Performance Scorecard & Optimization alternatives ─────────────
+    st.write("")
+    st.write("")
+    st.markdown("---")
+    st.markdown("""
+    <div style="font-weight: 700; color: #1C3D5A; font-size: 17px; margin-bottom: 2px;">🏆 Supplier Performance Scorecard</div>
+    <div style="font-size: 12.5px; color: #5B7A9C; margin-bottom: 15px;">Normalized supplier rankings based on 50/50 weighted combination of lead time score and average product cost price.</div>
+    """, unsafe_allow_html=True)
+    
+    scorecard_list = get_api_data("/api/analytics/supplier_scorecard", "")
+    if not scorecard_list:
+        scorecard_list = [
+            {"rank": 1, "supplier_id": "SUP-001", "products_supplied": 8, "avg_lead_time_day": 3.2, "avg_cost_price": 4.50, "lead_time_score": 90.0, "cost_score": 85.0, "supplier_score": 87.5},
+            {"rank": 2, "supplier_id": "SUP-002", "products_supplied": 12, "avg_lead_time_day": 4.5, "avg_cost_price": 3.80, "lead_time_score": 75.0, "cost_score": 92.0, "supplier_score": 83.5},
+            {"rank": 3, "supplier_id": "SUP-003", "products_supplied": 5, "avg_lead_time_day": 5.0, "avg_cost_price": 5.20, "lead_time_score": 70.0, "cost_score": 78.0, "supplier_score": 74.0}
+        ]
+        
+    if scorecard_list:
+        html_sc = """
+        <div style="overflow-x: auto; background-color: #FFFFFF; border-radius: 12px; border: 1px solid #E4EDF5; box-shadow: 0 2px 4px rgba(28,61,90,0.01);">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+            <thead>
+                <tr style="border-bottom: 2px solid #E4EDF5; background-color: #F8FAFC; color: #5B7A9C; font-weight: 600;">
+                    <th style="padding: 14px 16px; text-align: center;">Rank</th>
+                    <th style="padding: 14px 16px;">Supplier ID</th>
+                    <th style="padding: 14px 16px; text-align: center;">Products Supplied</th>
+                    <th style="padding: 14px 16px;">Avg Lead Time</th>
+                    <th style="padding: 14px 16px;">Avg Cost Price</th>
+                    <th style="padding: 14px 16px;">Lead Time Score</th>
+                    <th style="padding: 14px 16px;">Cost Score</th>
+                    <th style="padding: 14px 16px; font-weight: 700; color: #00A8C6;">Overall Supplier Score</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        for row in scorecard_list:
+            rank = row["rank"]
+            sid = row["supplier_id"]
+            supplied = row["products_supplied"]
+            alt_lt = row["avg_lead_time_day"]
+            alt_cp = row["avg_cost_price"]
+            lts = row["lead_time_score"]
+            cs = row["cost_score"]
+            ss = row["supplier_score"]
+            
+            html_sc += f"""
+                <tr style="border-bottom: 1px solid #E4EDF5; color: #1C3D5A;">
+                    <td style="padding: 14px 16px; text-align: center; font-weight: 700;">#{rank}</td>
+                    <td style="padding: 14px 16px; font-weight: 600;">{sid}</td>
+                    <td style="padding: 14px 16px; text-align: center; font-weight: 600;">{supplied}</td>
+                    <td style="padding: 14px 16px;">{alt_lt:.1f} days</td>
+                    <td style="padding: 14px 16px;">${alt_cp:.2f}</td>
+                    <td style="padding: 14px 16px;">{lts:.1f}%</td>
+                    <td style="padding: 14px 16px;">{cs:.1f}%</td>
+                    <td style="padding: 14px 16px; font-weight: 700; color: #00A8C6;">{ss:.1f}%</td>
+                </tr>
+            """
+        html_sc += """
+            </tbody>
+        </table>
+        </div>
+        """
+        html_sc_wrapped = f"""<!DOCTYPE html><html><head><style>
+        {TABLE_BASE_CSS}
+        table {{ width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }}
+        thead tr {{ background-color: #F8FAFC; border-bottom: 2px solid #E4EDF5; }}
+        th {{ padding: 14px 16px; font-weight: 600; color: #5B7A9C; }}
+        tbody tr {{ border-bottom: 1px solid #E4EDF5; color: #1C3D5A; }}
+        tbody tr:hover {{ background-color: #F8FAFC; }}
+        </style></head><body>
+        {html_sc}
+        </body></html>"""
+        components.html(html_sc_wrapped, height=80 + len(scorecard_list) * 58, scrolling=False)
+        
+    st.write("")
+    st.write("")
+    st.markdown("""
+    <div style="font-weight: 700; color: #1C3D5A; font-size: 17px; margin-bottom: 2px;">⚡ Supplier Alternatives for At-Risk Items</div>
+    <div style="font-size: 12.5px; color: #5B7A9C; margin-bottom: 15px;">Check whether at-risk items (LOW/OUT OF STOCK) could be reordered from a more reliable or cost-effective supplier.</div>
+    """, unsafe_allow_html=True)
+    
+    alt_list = get_api_data("/api/analytics/supplier_alternatives", "")
+    if not alt_list:
+        alt_list = [
+            {"product_id": 2, "sku": "PRD-0002", "product": "Greek Yogurt", "supplier_id": "SUP-003", "current_supplier_score": 74.0, "best_alt_supplier": "SUP-001", "best_alt_supplier_score": 87.5, "better_supplier_available": True, "stock_status": "LOW STOCK", "days_of_stock_left": 1.5}
+        ]
+        
+    better_alts = [x for x in alt_list if x.get("better_supplier_available") == True]
+    
+    if better_alts:
+        html_alts = """
+        <div style="overflow-x: auto; background-color: #FFFFFF; border-radius: 12px; border: 1px solid #E4EDF5; box-shadow: 0 2px 4px rgba(28,61,90,0.01);">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+            <thead>
+                <tr style="border-bottom: 2px solid #E4EDF5; background-color: #F8FAFC; color: #5B7A9C; font-weight: 600;">
+                    <th style="padding: 14px 16px;">SKU</th>
+                    <th style="padding: 14px 16px;">Product</th>
+                    <th style="padding: 14px 16px;">Stock Status</th>
+                    <th style="padding: 14px 16px;">Current Supplier</th>
+                    <th style="padding: 14px 16px; text-align: center;">Current Score</th>
+                    <th style="padding: 14px 16px; font-weight: 700; color: #10B981;">Recommended Alternative</th>
+                    <th style="padding: 14px 16px; text-align: center; font-weight: 700; color: #10B981;">Alternative Score</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        for row in better_alts:
+            sku = row['sku']
+            product = row['product']
+            status = row['stock_status']
+            curr_sup = row['supplier_id']
+            curr_score = row['current_supplier_score']
+            best_alt = row['best_alt_supplier']
+            best_score = row['best_alt_supplier_score']
+            
+            badge = render_status_badge("CRITICAL" if status == "OUT_OF_STOCK" else "LOW STOCK")
+            
+            html_alts += f"""
+                <tr style="border-bottom: 1px solid #E4EDF5; color: #1C3D5A;">
+                     <td style="padding: 14px 16px; font-weight: 500; font-family: monospace;">{sku}</td>
+                     <td style="padding: 14px 16px; font-weight: 600; color: #1C3D5A;">{product}</td>
+                     <td style="padding: 14px 16px;">{badge}</td>
+                     <td style="padding: 14px 16px; font-weight: 600; color: #4A607A;">{curr_sup}</td>
+                     <td style="padding: 14px 16px; text-align: center; font-weight: 600; color: #E63946;">{curr_score:.1f}%</td>
+                     <td style="padding: 14px 16px; font-weight: 700; color: #10B981;">{best_alt} 🌟</td>
+                     <td style="padding: 14px 16px; text-align: center; font-weight: 700; color: #10B981;">{best_score:.1f}%</td>
+                </tr>
+            """
+        html_alts += """
+            </tbody>
+        </table>
+        </div>
+        """
+        html_alts_wrapped = f"""<!DOCTYPE html><html><head><style>
+        {TABLE_BASE_CSS}
+        table {{ width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }}
+        thead tr {{ background-color: #F8FAFC; border-bottom: 2px solid #E4EDF5; }}
+        th {{ padding: 14px 16px; font-weight: 600; color: #5B7A9C; }}
+        tbody tr {{ border-bottom: 1px solid #E4EDF5; color: #1C3D5A; }}
+        tbody tr:hover {{ background-color: #F8FAFC; }}
+        </style></head><body>
+        {html_alts}
+        </body></html>"""
+        components.html(html_alts_wrapped, height=80 + len(better_alts) * 58, scrolling=False)
+    else:
+        st.success("✅ No low-stock items have alternative suppliers with better scorecard ranks.")
 
 # ----------------------------------------------------
 # PAGE E: AI AGENT (PROPOSAL)
@@ -1639,14 +1925,28 @@ elif selected_page == "AI_Agent":
             <div style="font-weight: 700; color: #1C3D5A; font-size: 16px; margin-bottom: 12px; margin-top: 4px;">Recommended Orders ({len(recs)} items)</div>
             """, unsafe_allow_html=True)
         with col_hdr_btn:
-            # Action button to approve all remaining orders
             if st.button(
                 "📥 APPROVE ALL ORDERS",
                 key="approve_all",
-                    use_container_width=True):
-                for item in recs:
-                    st.session_state[f"approved_{item['sku']}"] = True
-                st.toast("✅ Approved all recommended orders!", icon="📦")
+                use_container_width=True):
+                approved_count = 0
+                for r_idx, item in enumerate(recs):
+                    if not st.session_state.get(f"approved_{item['sku']}", item["approved"]):
+                        product_id = int(item['sku'].split("-")[1])
+                        try:
+                            resp = requests.post(f"{API_BASE_URL}/api/approve_order", json={
+                                "product_id": product_id,
+                                "quantity": int(item["units"]),
+                                "supplier_id": item["supplier"],
+                                "notes": item["reason"]
+                            }, timeout=5)
+                            if resp.status_code == 200:
+                                st.session_state.proposal_db[r_idx]["approved"] = True
+                                st.session_state[f"approved_{item['sku']}"] = True
+                                approved_count += 1
+                        except Exception:
+                            pass
+                st.toast(f"✅ Approved {approved_count} recommended orders on the backend!", icon="📦")
                 st.rerun()
 
         st.write("")
@@ -1728,20 +2028,31 @@ elif selected_page == "AI_Agent":
                     # Approve check button
                     if st.button(
                             "✓",
-                            key=f"app_check_{
-                                item['sku']}",
+                            key=f"app_check_{item['sku']}",
                             use_container_width=True,
                             help="Approve Order"):
-                        st.session_state.proposal_db[idx]["approved"] = True
-                        st.session_state[f"approved_{item['sku']}"] = True
-                        st.toast(f"✅ Approved: {item['product']}")
+                        product_id = int(item['sku'].split("-")[1])
+                        try:
+                            resp = requests.post(f"{API_BASE_URL}/api/approve_order", json={
+                                "product_id": product_id,
+                                "quantity": int(item["units"]),
+                                "supplier_id": item["supplier"],
+                                "notes": item["reason"]
+                            }, timeout=5)
+                            if resp.status_code == 200:
+                                st.session_state.proposal_db[idx]["approved"] = True
+                                st.session_state[f"approved_{item['sku']}"] = True
+                                st.toast(f"✅ Approved & saved order: {item['product']} ({item['units']} units)", icon="📦")
+                            else:
+                                st.error(f"Failed to approve order: {resp.text}")
+                        except Exception as e:
+                            st.error(f"Backend connection error: {e}")
                         st.rerun()
                 with sub_b2:
                     # Reject cross button
                     if st.button(
                             "✗",
-                            key=f"rej_cross_{
-                                item['sku']}",
+                            key=f"rej_cross_{item['sku']}",
                             use_container_width=True,
                             help="Reject Order"):
                         st.session_state.proposal_db[idx]["approved"] = False
@@ -1751,6 +2062,100 @@ elif selected_page == "AI_Agent":
                 st.markdown("</div>", unsafe_allow_html=True)
 
             st.write("")
+
+        # ── Budget-Constrained Procurement Planner ───────────────────────────
+        st.write("")
+        st.markdown("---")
+        st.markdown("""
+        <div style="font-weight: 700; color: #1C3D5A; font-size: 17px; margin-bottom: 2px;">💰 Budget-Constrained Procurement Planner</div>
+        <div style="font-size: 12.5px; color: #5B7A9C; margin-bottom: 15px;">Simulate available funds and prioritize purchase orders by urgency (stockout timeline).</div>
+        """, unsafe_allow_html=True)
+
+        budget_val = st.slider("Procurement Budget ($)", min_value=1000.0, max_value=40000.0, value=15000.0, step=500.0, key="procurement_budget_slider")
+        plan_list = get_api_data(f"/api/analytics/reorder_plan?budget={budget_val}", "")
+
+        # Fallback if backend is down
+        if not plan_list:
+            plan_list = [
+                {"sku": "PRD-0002", "product": "Greek Yogurt", "supplier_id": "SUP-003", "stock": 4, "reorder_point": 10.0, "days_left": 1.5, "status": "LOW STOCK", "order_qty": 6, "cost_price": 2.0, "order_cost": 12.0, "order_status": "APPROVED", "cumulative_spend": 12.0}
+            ]
+
+        if plan_list:
+            df_p = pd.DataFrame(plan_list)
+            app_p = df_p[df_p["order_status"] == "APPROVED"]
+            def_p = df_p[df_p["order_status"] == "DEFERRED"]
+            tot_app = app_p["order_cost"].sum() if not app_p.empty else 0.0
+            tot_def = def_p["order_cost"].sum() if not def_p.empty else 0.0
+
+            col_b1, col_b2, col_b3 = st.columns(3)
+            with col_b1:
+                st.markdown(render_kpi_card("Approved Spend", f"${tot_app:,.2f}", f"{len(app_p)} orders approved", f"Out of {len(df_p)} total suggestions", "✅", "green"), unsafe_allow_html=True)
+            with col_b2:
+                st.markdown(render_kpi_card("Deferred Spend", f"${tot_def:,.2f}", f"{len(def_p)} orders deferred", "Requires higher budget cap", "⏳", "yellow"), unsafe_allow_html=True)
+            with col_b3:
+                rem_bud = max(0.0, budget_val - tot_app)
+                st.markdown(render_kpi_card("Remaining Budget", f"${rem_bud:,.2f}", f"{(tot_app/budget_val)*100:.1f}% budget used", "Safe to allocate elsewhere", "🛡️", "default"), unsafe_allow_html=True)
+
+            st.write("")
+
+            html_plan = """
+            <div style="overflow-x: auto; background-color: #FFFFFF; border-radius: 12px; border: 1px solid #E4EDF5; box-shadow: 0 2px 4px rgba(28,61,90,0.01);">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #E4EDF5; background-color: #F8FAFC; color: #5B7A9C; font-weight: 600;">
+                        <th style="padding: 14px 16px;">SKU</th>
+                        <th style="padding: 14px 16px;">Product</th>
+                        <th style="padding: 14px 16px;">Supplier</th>
+                        <th style="padding: 14px 16px; text-align: center;">Days Left</th>
+                        <th style="padding: 14px 16px; text-align: center;">Order Qty</th>
+                        <th style="padding: 14px 16px;">Cost Price</th>
+                        <th style="padding: 14px 16px;">Total Cost</th>
+                        <th style="padding: 14px 16px; text-align: center;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+            for row in plan_list:
+                sku = row['sku']
+                product = row['product']
+                supplier = row['supplier_id']
+                days = row['days_left']
+                qty = row['order_qty']
+                cp = row['cost_price']
+                cost = row['order_cost']
+                ostatus = row['order_status']
+
+                badge = render_status_badge("HEALTHY" if ostatus == "APPROVED" else "LOW STOCK")
+                days_str = f"{days:.1f}d" if days < 999 else "N/A"
+
+                html_plan += f"""
+                    <tr style="border-bottom: 1px solid #E4EDF5; color: #1C3D5A; background-color: {'#ECFDF5' if ostatus == 'APPROVED' else '#FFFBEB'};">
+                        <td style="padding: 14px 16px; font-weight: 500; font-family: monospace;">{sku}</td>
+                        <td style="padding: 14px 16px; font-weight: 600; color: #1C3D5A;">{product}</td>
+                        <td style="padding: 14px 16px; color: #4A607A;">{supplier}</td>
+                        <td style="padding: 14px 16px; text-align: center; font-weight: 600;">{days_str}</td>
+                        <td style="padding: 14px 16px; text-align: center; font-weight: 700; color: #00A8C6;">{qty}</td>
+                        <td style="padding: 14px 16px;">${cp:.2f}</td>
+                        <td style="padding: 14px 16px; font-weight: 700;">${cost:,.2f}</td>
+                        <td style="padding: 14px 16px; text-align: center;">{badge}</td>
+                    </tr>
+                """
+            html_plan += """
+                </tbody>
+            </table>
+            </div>
+            """
+            html_plan_wrapped = f"""<!DOCTYPE html><html><head><style>
+            {TABLE_BASE_CSS}
+            table {{ width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }}
+            thead tr {{ background-color: #F8FAFC; border-bottom: 2px solid #E4EDF5; }}
+            th {{ padding: 14px 16px; font-weight: 600; color: #5B7A9C; }}
+            tbody tr {{ border-bottom: 1px solid #E4EDF5; color: #1C3D5A; }}
+            tbody tr:hover {{ background-color: #F8FAFC; }}
+            </style></head><body>
+            {html_plan}
+            </body></html>"""
+            components.html(html_plan_wrapped, height=80 + len(plan_list) * 58, scrolling=False)
 
     with tab_report:
         col_report_left, col_report_right = st.columns([1.8, 1.2])
@@ -1798,27 +2203,6 @@ elif selected_page == "AI_Agent":
                 """, unsafe_allow_html=True)
 
             st.markdown("</div>", unsafe_allow_html=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
