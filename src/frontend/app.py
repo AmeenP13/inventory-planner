@@ -53,7 +53,7 @@ def reload_all_data():
     st.session_state.suppliers_data = get_api_data("/api/suppliers_report", [])
 
 
-# Handle restock/snooze actions from query parameters before loading page state
+# Handle restock/snooze/approval actions from query parameters before loading page state
 if "action" in st.query_params:
     action = st.query_params["action"]
     if action == "restock":
@@ -86,6 +86,44 @@ if "action" in st.query_params:
             reload_all_data()
         except Exception as e:
             st.error(f"Error snoozing alert: {e}")
+    elif action == "approve_rec":
+        try:
+            sku = st.query_params["sku"]
+            idx = int(st.query_params["idx"])
+            p_id = int(sku.split("-")[1])
+            recs = st.session_state.get("proposal_db", [])
+            if recs and idx < len(recs):
+                item = recs[idx]
+                resp = requests.post(f"{API_BASE_URL}/api/approve_order", json={
+                    "product_id": p_id,
+                    "quantity": int(item["units"]),
+                    "supplier_id": item["supplier"],
+                    "notes": item["reason"]
+                }, timeout=5)
+                if resp.status_code == 200:
+                    st.session_state.proposal_db[idx]["approved"] = True
+                    st.session_state[f"approved_{sku}"] = True
+                    st.toast(f"✅ Approved & saved order: {item['product']} ({item['units']} units)", icon="📦")
+                    # Invalidate session cache and force reload
+                    reload_all_data()
+                else:
+                    st.error(f"Failed to approve order: {resp.text}")
+        except Exception as e:
+            st.error(f"Error approving recommendation: {e}")
+    elif action == "reject_rec":
+        try:
+            sku = st.query_params["sku"]
+            idx = int(st.query_params["idx"])
+            recs = st.session_state.get("proposal_db", [])
+            if recs and idx < len(recs):
+                item = recs[idx]
+                st.session_state.proposal_db[idx]["approved"] = False
+                st.session_state[f"approved_{sku}"] = False
+                st.toast(f"❌ Rejected order: {item['product']}", icon="🚫")
+                # Invalidate session cache and force reload
+                reload_all_data()
+        except Exception as e:
+            st.error(f"Error rejecting recommendation: {e}")
             
     # Clear parameters except page
     current_page = st.query_params.get("page", "Overview")
@@ -2047,63 +2085,17 @@ elif selected_page == "AI_Agent":
                 """, unsafe_allow_html=True)
 
             with col_action_btns:
-                # Interactive action buttons
-                st.markdown(f"""
-                <style>
-                .btn-holder-{idx} {{
-                    background-color: {card_bg};
-                    border-top: 1px solid #E4EDF5;
-                    border-bottom: 1px solid #E4EDF5;
-                    border-right: 1px solid #E4EDF5;
-                    border-radius: 0 8px 8px 0;
-                    min-height: 85px;
-                    padding: 10px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 6px;
-                }}
-                </style>
-                <div class="btn-holder-{idx}">
-                """, unsafe_allow_html=True)
-
-                sub_b1, sub_b2 = st.columns(2)
-                with sub_b1:
-                    # Approve check button
-                    if st.button(
-                            "✓",
-                            key=f"app_check_{item['sku']}",
-                            use_container_width=True,
-                            help="Approve Order"):
-                        product_id = int(item['sku'].split("-")[1])
-                        try:
-                            resp = requests.post(f"{API_BASE_URL}/api/approve_order", json={
-                                "product_id": product_id,
-                                "quantity": int(item["units"]),
-                                "supplier_id": item["supplier"],
-                                "notes": item["reason"]
-                            }, timeout=5)
-                            if resp.status_code == 200:
-                                st.session_state.proposal_db[idx]["approved"] = True
-                                st.session_state[f"approved_{item['sku']}"] = True
-                                st.toast(f"✅ Approved & saved order: {item['product']} ({item['units']} units)", icon="📦")
-                            else:
-                                st.error(f"Failed to approve order: {resp.text}")
-                        except Exception as e:
-                            st.error(f"Backend connection error: {e}")
-                        st.rerun()
-                with sub_b2:
-                    # Reject cross button
-                    if st.button(
-                            "✗",
-                            key=f"rej_cross_{item['sku']}",
-                            use_container_width=True,
-                            help="Reject Order"):
-                        st.session_state.proposal_db[idx]["approved"] = False
-                        st.session_state[f"approved_{item['sku']}"] = False
-                        st.toast(f"❌ Rejected: {item['product']}")
-                        st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
+                # Render the buttons as custom styled HTML links inside a single container to prevent layout/click issues
+                approve_link = f"/?page=AI_Agent&action=approve_rec&sku={item['sku']}&idx={idx}"
+                reject_link = f"/?page=AI_Agent&action=reject_rec&sku={item['sku']}&idx={idx}"
+                
+                btn_html = f"""
+                <div style="background-color: {card_bg}; opacity: {card_opacity}; border-top: 1px solid #E4EDF5; border-bottom: 1px solid #E4EDF5; border-right: 1px solid #E4EDF5; border-radius: 0 8px 8px 0; min-height: 85px; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    <a href="{approve_link}" target="_self" style="flex: 1; text-align: center; background-color: #F1F5F9; color: #10B981; padding: 10px 0; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 14px; display: block; line-height: 1; border: 1px solid #E2E8F0;" title="Approve Order">✓</a>
+                    <a href="{reject_link}" target="_self" style="flex: 1; text-align: center; background-color: #F1F5F9; color: #EF4444; padding: 10px 0; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 14px; display: block; line-height: 1; border: 1px solid #E2E8F0;" title="Reject Order">✗</a>
+                </div>
+                """
+                st.html(btn_html)
 
             st.write("")
 
