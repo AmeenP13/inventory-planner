@@ -2176,7 +2176,7 @@ elif selected_page == "AI_Agent":
                 </div>
             </div>
             """
-            st.markdown(memo_html, unsafe_allow_html=True)
+            st.html(memo_html)
 
         with col_report_right:
             traces_html = ""
@@ -2216,4 +2216,4 @@ elif selected_page == "AI_Agent":
                 {traces_html}
             </div>
             """
-            st.markdown(right_card_html, unsafe_allow_html=True)
+            st.html(right_card_html)
