@@ -31,4 +31,6 @@ def risk_analysis(state: State):
     if isinstance(next_day, dict):
         next_day["risk"] = risk
 
+
     return state
+

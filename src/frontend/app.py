@@ -1066,6 +1066,7 @@ elif selected_page == "Inventory":
     </div>
     """, unsafe_allow_html=True)
 
+
     # Render Table Rows dynamically
     for _ri, _row in df_filtered.reset_index(drop=True).iterrows():
         _sku = _row['sku']
@@ -1075,6 +1076,33 @@ elif selected_page == "Inventory":
         _supplier = _row['supplier']
         _status = _row['status']
         _category = _row['category']
+
+
+    # Render Table Header (Grid Layout matching original UI exactly)
+    st.markdown("""
+    <div style="display: grid; grid-template-columns: 1.15fr 2fr 0.7fr 1.4fr 1.5fr 1.2fr 0.4fr; 
+                background-color: #F8FAFC; border: 1px solid #E4EDF5; border-radius: 12px 12px 0 0; 
+                font-weight: 600; color: #5B7A9C; font-size: 13px; align-items: center; min-height: 48px;">
+        <span style="padding: 12px 16px;">SKU</span>
+        <span style="padding: 12px 16px;">Product</span>
+        <span style="padding: 12px 16px;">Stock</span>
+        <span style="padding: 12px 16px;">Days Left</span>
+        <span style="padding: 12px 16px;">Supplier</span>
+        <span style="padding: 12px 16px;">Status</span>
+        <span style="padding: 12px 16px; text-align: center;">Actions</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Render Table Rows dynamically
+    for _ri, _row in df_filtered.reset_index(drop=True).iterrows():
+        _sku = _row['sku']
+        _product = _row['product']
+        _stock = int(_row['stock'])
+        _days_left = float(_row['days_left'])
+        _supplier = _row['supplier']
+        _status = _row['status']
+        _category = _row['category']
+
 
         _max_days = 14.0
         _pct = min(100.0, (_days_left / _max_days) * 100.0) if _days_left > 0 else 0.0
@@ -1927,3 +1955,202 @@ elif selected_page == "AI_Agent":
                 """, unsafe_allow_html=True)
 
             st.markdown("</div>", unsafe_allow_html=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

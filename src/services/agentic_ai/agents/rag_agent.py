@@ -41,6 +41,13 @@ def rag_agent(state: State):
     except Exception as e:
         print(f"[RAG ERROR] {e}")
 
+
+        state["policy"] = "No policy found."
+        inventory["policy"] = "No policy found."
+
+        state["error"] = f"RAG Error: {e}"
+
+
         state["policy"] = "No policy found."
         inventory["policy"] = "No policy found."
 

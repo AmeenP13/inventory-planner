@@ -43,6 +43,7 @@ def demand_agent(state: State):
         record["days_of_stock_left"] = state["demand"]["days_of_stock_left"]
         record["stock_status"] = state["demand"]["stock_status"]
 
+
     next_day = state.get("next_day_inventory")
     if isinstance(next_day, dict):
         next_day["average_daily_sales"] = state["demand"]["average_daily_sales"]
