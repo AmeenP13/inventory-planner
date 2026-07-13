@@ -53,6 +53,47 @@ def reload_all_data():
     st.session_state.suppliers_data = get_api_data("/api/suppliers_report", [])
 
 
+# Handle restock/snooze actions from query parameters before loading page state
+if "action" in st.query_params:
+    action = st.query_params["action"]
+    if action == "restock":
+        try:
+            p_id = int(st.query_params["product_id"])
+            qty = int(st.query_params["qty"])
+            supplier = st.query_params["supplier"]
+            resp = requests.post(f"{API_BASE_URL}/api/approve_order", json={
+                "product_id": p_id,
+                "quantity": qty,
+                "supplier_id": supplier,
+                "notes": "Restocked via Overview alert dialog"
+            }, timeout=5)
+            if resp.status_code == 200:
+                st.toast("✅ Restock order approved and stock updated!", icon="📦")
+                # Invalidate session cache and force reload
+                reload_all_data()
+            else:
+                st.error(f"Failed to restock: {resp.text}")
+        except Exception as e:
+            st.error(f"Error restocking: {e}")
+    elif action == "snooze":
+        try:
+            p_id = int(st.query_params["product_id"])
+            if "snoozed_alerts" not in st.session_state:
+                st.session_state.snoozed_alerts = {}
+            st.session_state.snoozed_alerts[p_id] = time.time() + 120  # Snooze for 2 minutes (120 seconds)
+            st.toast("⏳ Restock recommendation snoozed for 2 minutes.", icon="🔔")
+            # Invalidate session cache and force reload
+            reload_all_data()
+        except Exception as e:
+            st.error(f"Error snoozing alert: {e}")
+            
+    # Clear parameters except page
+    current_page = st.query_params.get("page", "Overview")
+    st.query_params.clear()
+    st.query_params.update(page=current_page)
+    st.rerun()
+
+
 if "overview_data" not in st.session_state:
     st.session_state.overview_data = get_api_data("/api/overview", {})
 
@@ -878,9 +919,23 @@ if selected_page == "Overview":
             scrolling=False)
 
     with col_alerts:
-        # Critical Alerts Panel rendered in a single robust container
+        # Critical Alerts Panel filtered by snooze state
+        import time
+        current_time = time.time()
+        snoozed_alerts = st.session_state.get("snoozed_alerts", {})
+
         alerts_html = ""
         for item in overview_data.get("alerts", []):
+            try:
+                p_id = int(item["sku"].split("-")[1])
+            except Exception:
+                p_id = None
+
+            # Check if this alert is snoozed
+            if p_id is not None and p_id in snoozed_alerts:
+                if current_time < snoozed_alerts[p_id]:
+                    continue
+
             is_critical = item["status"] == "CRITICAL"
             badge_color = "#E63946" if is_critical else (
                 "#F59E0B" if item["status"] == "LOW STOCK" else "#94A3B8")
@@ -893,16 +948,17 @@ if selected_page == "Overview":
             # Draw recommendation block if applicable
             dialog_html = ""
             if "dialog" in item:
+                d = item["dialog"]
                 dialog_html = f"""
                 <div style="background-color: #EBF3FC; border: 1px solid #BFE3F9; border-radius: 8px; padding: 12px; text-align: left; box-shadow: 0 4px 6px rgba(0, 168, 198, 0.04); margin-top: 8px; margin-bottom: 4px;">
                     <div style="font-weight: 700; color: #1C3D5A; font-size: 12.5px; margin-bottom: 5px; display: flex; align-items: center; gap: 6px;">
                         <span>⚡</span> Restock Recommendation
                     </div>
-                    <div style="font-size: 11.5px; color: #4A607A; line-height: 1.4; margin-bottom: 10px;">{item["dialog"]["text"]}</div>
-                    <div style="font-size: 11px; font-weight: 600; color: #E63946; margin-bottom: 12px;">⏰ {item["dialog"]["timer"]}</div>
+                    <div style="font-size: 11.5px; color: #4A607A; line-height: 1.4; margin-bottom: 10px;">{d["text"]}</div>
+                    <div style="font-size: 11px; font-weight: 600; color: #E63946; margin-bottom: 12px;">⏰ {d["timer"]}</div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                        <a href="/?page=AI_Agent&run=true" target="_self" style="display: block; text-align: center; background-color: #00A8C6; color: white; padding: 6px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11.5px;">Yes, Run AI</a>
-                        <a href="/?page=Overview" target="_self" style="display: block; text-align: center; background-color: #E2E8F0; color: #4A607A; padding: 6px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11.5px;">Dismiss</a>
+                        <a href="/?action=restock&product_id={d['product_id']}&qty={d['quantity']}&supplier={d['supplier_id']}" target="_self" style="display: block; text-align: center; background-color: #10B981; color: white; padding: 6px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11.5px;">Yes</a>
+                        <a href="/?action=snooze&product_id={d['product_id']}" target="_self" style="display: block; text-align: center; background-color: #EF4444; color: white; padding: 6px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11.5px;">No</a>
                     </div>
                 </div>
                 """

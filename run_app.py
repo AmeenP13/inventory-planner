@@ -24,7 +24,20 @@ def main():
     )
     
     # Wait for the backend port to start up
-    time.sleep(2)
+    print("[*] Waiting for FastAPI backend to bind to port 8000...")
+    import socket
+    backend_ready = False
+    for _ in range(15):
+        try:
+            with socket.create_connection(("127.0.0.1", 8000), timeout=1):
+                backend_ready = True
+                break
+        except OSError:
+            time.sleep(1)
+    if backend_ready:
+        print("[+] FastAPI backend is ready!")
+    else:
+        print("[!] Warning: FastAPI backend did not start within 15 seconds. Proceeding anyway...")
     
     # 2. Start Frontend (Streamlit)
     print("[*] Starting Streamlit Frontend on http://localhost:8501 ...")

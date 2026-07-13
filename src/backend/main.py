@@ -23,8 +23,8 @@ from .routers import crud, reports, agent, analytics
 async def lifespan(app: FastAPI):
     print("Pre-loading Chroma vector database and HuggingFace embedding model...")
     try:
-        from src.services.rag_policy.vector_db import get_vector_db
-        t = threading.Thread(target=get_vector_db, daemon=True)
+        from src.services.rag_policy.vector_db import load_vector_db
+        t = threading.Thread(target=load_vector_db, daemon=True)
         t.start()
     except Exception as e:
         print(f"Error pre-loading vector database: {e}")

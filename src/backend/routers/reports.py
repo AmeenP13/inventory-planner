@@ -65,9 +65,17 @@ def get_overview():
         })
 
     if alerts:
-        alerts[-1]["dialog"] = {
-            "text": "Restock Needed: Multiple products are at critical levels or out of stock and require immediate replenishment.",
-            "timer": "Decision Timer: 1 hour",
+        # Generate a dynamic, real recommendation for the most critical item
+        first_row = needs_action_df.iloc[0]
+        first_days_left = 0.0 if first_row["days_of_stock_left"] == np.inf else float(first_row["days_of_stock_left"])
+        order_qty = int(np.ceil(max(1.0, first_row["reorder_point"] - first_row["current_stock"])))
+        
+        alerts[0]["dialog"] = {
+            "text": f"Restock Suggestion: {first_row['product_name']} ({alerts[0]['sku']}) is {first_row['stock_status'].replace('_', ' ')} with only {first_days_left:.1f} days left. Recommend ordering {order_qty} units from supplier {first_row['supplier_id']}.",
+            "timer": "Decision Timer: 5 mins",
+            "product_id": int(first_row["product_id"]),
+            "quantity": order_qty,
+            "supplier_id": first_row["supplier_id"],
         }
 
     # Demand trend from sales DB
