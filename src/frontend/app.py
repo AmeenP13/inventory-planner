@@ -154,7 +154,7 @@ if "agent_proposal" not in st.session_state:
     st.session_state.agent_proposal = get_api_data("/api/proposal", {})
 
 if "proposal_db" not in st.session_state and st.session_state.agent_proposal:
-    st.session_state.proposal_db = st.session_state.agent_proposal["recommendations"]
+    st.session_state.proposal_db = st.session_state.agent_proposal.get("recommendations", [])
 
 # Notify user of low stock alerts on initial load
 if "notified_low_stock" not in st.session_state:
@@ -909,30 +909,33 @@ if selected_page == "Overview":
 
         # Draw Altair Line & Area chart
         df_trend = pd.DataFrame(overview_data.get("demand_trend", []))
-        df_melt = df_trend.melt(
-            id_vars=["date"],
-            var_name="Category",
-            value_name="Units Sold")
+        if df_trend.empty or "date" not in df_trend.columns:
+            st.info("📊 Demand trend data unavailable — backend may still be loading.")
+        else:
+            df_melt = df_trend.melt(
+                id_vars=["date"],
+                var_name="Category",
+                value_name="Units Sold")
 
-        base = alt.Chart(df_melt).encode(
-            x=alt.X(
-                'date:N', sort=None, title=None), y=alt.Y(
-                'Units Sold:Q', title=None), color=alt.Color(
-                'Category:N', scale=alt.Scale(
-                    domain=[
-                        'Electronics', 'Beverages', 'Health', 'Fitness'], range=[
-                            '#00B4D8', '#4CAF50', '#FF9800', '#9C27B0']), legend=None))
-        lines = base.mark_line(interpolate='monotone', strokeWidth=3.5)
-        areas = base.mark_area(interpolate='monotone', opacity=0.08)
-        chart = (areas + lines).properties(height=260).configure_axis(
-            gridOpacity=0.2,
-            gridDash=[2, 2],
-            labelColor='#8CA0B8',
-            tickColor='transparent'
-        ).configure_view(
-            strokeWidth=0
-        )
-        st.altair_chart(chart, use_container_width=True)
+            base = alt.Chart(df_melt).encode(
+                x=alt.X(
+                    'date:N', sort=None, title=None), y=alt.Y(
+                    'Units Sold:Q', title=None), color=alt.Color(
+                    'Category:N', scale=alt.Scale(
+                        domain=[
+                            'Electronics', 'Beverages', 'Health', 'Fitness'], range=[
+                                '#00B4D8', '#4CAF50', '#FF9800', '#9C27B0']), legend=None))
+            lines = base.mark_line(interpolate='monotone', strokeWidth=3.5)
+            areas = base.mark_area(interpolate='monotone', opacity=0.08)
+            chart = (areas + lines).properties(height=260).configure_axis(
+                gridOpacity=0.2,
+                gridDash=[2, 2],
+                labelColor='#8CA0B8',
+                tickColor='transparent'
+            ).configure_view(
+                strokeWidth=0
+            )
+            st.altair_chart(chart, use_container_width=True)
 
         # Legend custom rendering in HTML
         st.markdown("""
@@ -1362,10 +1365,14 @@ elif selected_page == "Demand":
 
         # Line chart from demand_data
         df_trend = pd.DataFrame(demand_data.get("sales_velocity_trend", []))
-        df_melt = df_trend.melt(
-            id_vars=["date"],
-            var_name="Category",
-            value_name="Units Sold")
+        if df_trend.empty or "date" not in df_trend.columns:
+            st.info("📊 Sales velocity trend data unavailable — backend may still be loading.")
+            df_melt = pd.DataFrame(columns=["date", "Category", "Units Sold"])
+        else:
+            df_melt = df_trend.melt(
+                id_vars=["date"],
+                var_name="Category",
+                value_name="Units Sold")
 
         chart_line = alt.Chart(df_melt).mark_line(
             interpolate='monotone',
