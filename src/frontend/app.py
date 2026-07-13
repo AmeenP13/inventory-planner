@@ -958,14 +958,10 @@ if selected_page == "Overview":
             render_table(
                 df_snapshot,
                 is_snapshot=True),
-            height=68 +
-            n_rows_snap *
-            58,
-            scrolling=False)
+            height=68 + n_rows_snap * 58)
 
     with col_alerts:
         # Critical Alerts Panel filtered by snooze state
-        import time
         current_time = time.time()
         snoozed_alerts = st.session_state.get("snoozed_alerts", {})
 
@@ -1520,7 +1516,7 @@ elif selected_page == "Demand":
     {html_top}
     </body></html>"""
     n_top = len(top_skus)
-    st.iframe(html_top_wrapped, height=68 + n_top * 60, scrolling=False)
+    st.iframe(html_top_wrapped, height=68 + n_top * 60)
 
     # ── Dead Stock Analysis Panel ──────────────────────────────────────────────
     st.write("")
@@ -1616,7 +1612,7 @@ elif selected_page == "Demand":
         </style></head><body>
         {html_dead}
         </body></html>"""
-        st.iframe(html_dead_wrapped, height=80 + len(dead_stock_list) * 58, scrolling=False)
+        st.iframe(html_dead_wrapped, height=80 + len(dead_stock_list) * 58)
 
 # ----------------------------------------------------
 # PAGE D: SUPPLIERS
@@ -1780,7 +1776,7 @@ elif selected_page == "Suppliers":
         </style></head><body>
         {html_sc}
         </body></html>"""
-        st.iframe(html_sc_wrapped, height=80 + len(scorecard_list) * 58, scrolling=False)
+        st.iframe(html_sc_wrapped, height=80 + len(scorecard_list) * 58)
         
     st.write("")
     st.write("")
@@ -1847,7 +1843,7 @@ elif selected_page == "Suppliers":
         </style></head><body>
         {html_alts}
         </body></html>"""
-        st.iframe(html_alts_wrapped, height=80 + len(better_alts) * 58, scrolling=False)
+        st.iframe(html_alts_wrapped, height=80 + len(better_alts) * 58)
     else:
         st.success("✅ No low-stock items have alternative suppliers with better scorecard ranks.")
 
@@ -2196,7 +2192,7 @@ elif selected_page == "AI_Agent":
             </style></head><body>
             {html_plan}
             </body></html>"""
-            st.iframe(html_plan_wrapped, height=80 + len(plan_list) * 58, scrolling=False)
+            st.iframe(html_plan_wrapped, height=80 + len(plan_list) * 58)
 
     with tab_report:
         col_report_left, col_report_right = st.columns([1.8, 1.2])
