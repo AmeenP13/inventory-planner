@@ -1,8 +1,6 @@
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
-import json
-import os
 import pandas as pd
 import altair as alt
 import time
@@ -15,50 +13,58 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. API & Mock Data Loader Helper
-MOCK_DIR = os.path.join(os.path.dirname(__file__), "mock")
+# 2. API Configuration — backend only, no mock fallback
 API_BASE_URL = "http://127.0.0.1:8000"
 
 
-def load_mock_json(filename):
-    path = os.path.join(MOCK_DIR, filename)
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    st.error(f"Mock file not found: {filename}")
-    return {}
-
-
-def get_api_data(endpoint, fallback_filename):
+def get_api_data(endpoint, _fallback=None):
+    """Fetch data from the FastAPI backend.
+    Returns the parsed JSON on success, or an empty dict/list on failure.
+    Shows a one-time toast error so the UI doesn't crash silently.
+    """
     try:
-        res = requests.get(f"{API_BASE_URL}{endpoint}", timeout=5)
+        res = requests.get(f"{API_BASE_URL}{endpoint}", timeout=8)
         if res.status_code == 200:
             return res.json()
+        else:
+            _show_backend_error(endpoint, f"HTTP {res.status_code}")
+    except requests.exceptions.ConnectionError:
+        _show_backend_error(endpoint, "backend unreachable")
     except Exception as e:
-        pass
-    return load_mock_json(fallback_filename)
+        _show_backend_error(endpoint, str(e))
+    # Return sensible empty default depending on expected shape
+    return _fallback if _fallback is not None else {}
+
+
+def _show_backend_error(endpoint: str, reason: str):
+    """Toast a backend error once per endpoint per session."""
+    key = f"_err_{endpoint}"
+    if not st.session_state.get(key):
+        st.toast(f"⚠️ Backend error on {endpoint}: {reason}", icon="🔴")
+        st.session_state[key] = True
 
 
 # Load datasets using reload helper and session state caching
 def reload_all_data():
-    st.session_state.overview_data = get_api_data("/api/overview", "overview_data.json")
-    inventory_data = get_api_data("/api/inventory_report", "inventory_data.json")
-    st.session_state.inventory_db = pd.DataFrame(inventory_data)
-    st.session_state.demand_data = get_api_data("/api/demand_report", "demand_data.json")
-    st.session_state.suppliers_data = get_api_data("/api/suppliers_report", "suppliers_data.json")
+    st.session_state.overview_data = get_api_data("/api/overview", {})
+    inventory_data = get_api_data("/api/inventory_report", [])
+    st.session_state.inventory_db = pd.DataFrame(inventory_data if inventory_data else [])
+    st.session_state.demand_data = get_api_data("/api/demand_report", {})
+    st.session_state.suppliers_data = get_api_data("/api/suppliers_report", [])
+
 
 if "overview_data" not in st.session_state:
-    st.session_state.overview_data = get_api_data("/api/overview", "overview_data.json")
+    st.session_state.overview_data = get_api_data("/api/overview", {})
 
 if "inventory_db" not in st.session_state:
-    inventory_data = get_api_data("/api/inventory_report", "inventory_data.json")
-    st.session_state.inventory_db = pd.DataFrame(inventory_data)
+    inventory_data = get_api_data("/api/inventory_report", [])
+    st.session_state.inventory_db = pd.DataFrame(inventory_data if inventory_data else [])
 
 if "demand_data" not in st.session_state:
-    st.session_state.demand_data = get_api_data("/api/demand_report", "demand_data.json")
+    st.session_state.demand_data = get_api_data("/api/demand_report", {})
 
 if "suppliers_data" not in st.session_state:
-    st.session_state.suppliers_data = get_api_data("/api/suppliers_report", "suppliers_data.json")
+    st.session_state.suppliers_data = get_api_data("/api/suppliers_report", [])
 
 overview_data = st.session_state.overview_data
 inventory_data = st.session_state.inventory_db.to_dict('records') if hasattr(st.session_state.inventory_db, "to_dict") else list(st.session_state.inventory_db)
@@ -66,8 +72,7 @@ demand_data = st.session_state.demand_data
 suppliers_data = st.session_state.suppliers_data
 
 if "agent_proposal" not in st.session_state:
-    st.session_state.agent_proposal = get_api_data(
-        "/api/proposal", "agent_proposal.json")
+    st.session_state.agent_proposal = get_api_data("/api/proposal", {})
 
 if "proposal_db" not in st.session_state and st.session_state.agent_proposal:
     st.session_state.proposal_db = st.session_state.agent_proposal["recommendations"]
@@ -1421,17 +1426,13 @@ elif selected_page == "Demand":
         st.write("")
         st.write("")
         run_dead_analysis = st.button("🔍 Run Dead Stock Analysis", key="run_dead_stock_btn", use_container_width=True)
-        
-    dead_stock_list = get_api_data(f"/api/analytics/dead_stock?days={dead_days}", "")
-    
-    # Fallback mock list if backend is down or returns empty
-    if not dead_stock_list:
-        dead_stock_list = [
-            {"product_id": 1, "sku": "PRD-0001", "product": "Organic Honey", "supplier": "SUP-001", "stock": 45, "units_sold_last_90d": 0, "days_of_history": 90, "is_dead_stock": True, "cost_price": 5.0, "base_price": 8.0, "suggested_markdown_price": 5.60, "holding_cost_exposure": 225.0},
-            {"product_id": 4, "sku": "PRD-0004", "product": "Fresh Blueberries", "supplier": "SUP-002", "stock": 100, "units_sold_last_90d": 0, "days_of_history": 90, "is_dead_stock": True, "cost_price": 2.50, "base_price": 4.50, "suggested_markdown_price": 3.15, "holding_cost_exposure": 250.0},
-            {"product_id": 8, "sku": "PRD-0008", "product": "Whole Grain Bread", "supplier": "SUP-003", "stock": 10, "units_sold_last_90d": 12, "days_of_history": 90, "is_dead_stock": False, "cost_price": 1.80, "base_price": 3.00, "suggested_markdown_price": None, "holding_cost_exposure": 0.0}
-        ]
-        
+        if run_dead_analysis:
+            st.session_state["dead_stock_days"] = dead_days
+
+    # Use the last committed dead_days (from button press), or default on first load
+    _effective_dead_days = st.session_state.get("dead_stock_days", dead_days)
+    dead_stock_list = get_api_data(f"/api/analytics/dead_stock?days={_effective_dead_days}", [])
+
     if dead_stock_list:
         df_dead = pd.DataFrame(dead_stock_list)
         is_dead = df_dead[df_dead["is_dead_stock"] == True]
@@ -1610,14 +1611,8 @@ elif selected_page == "Suppliers":
     <div style="font-size: 12.5px; color: #5B7A9C; margin-bottom: 15px;">Normalized supplier rankings based on 50/50 weighted combination of lead time score and average product cost price.</div>
     """, unsafe_allow_html=True)
     
-    scorecard_list = get_api_data("/api/analytics/supplier_scorecard", "")
-    if not scorecard_list:
-        scorecard_list = [
-            {"rank": 1, "supplier_id": "SUP-001", "products_supplied": 8, "avg_lead_time_day": 3.2, "avg_cost_price": 4.50, "lead_time_score": 90.0, "cost_score": 85.0, "supplier_score": 87.5},
-            {"rank": 2, "supplier_id": "SUP-002", "products_supplied": 12, "avg_lead_time_day": 4.5, "avg_cost_price": 3.80, "lead_time_score": 75.0, "cost_score": 92.0, "supplier_score": 83.5},
-            {"rank": 3, "supplier_id": "SUP-003", "products_supplied": 5, "avg_lead_time_day": 5.0, "avg_cost_price": 5.20, "lead_time_score": 70.0, "cost_score": 78.0, "supplier_score": 74.0}
-        ]
-        
+    scorecard_list = get_api_data("/api/analytics/supplier_scorecard", [])
+
     if scorecard_list:
         html_sc = """
         <div style="overflow-x: auto; background-color: #FFFFFF; border-radius: 12px; border: 1px solid #E4EDF5; box-shadow: 0 2px 4px rgba(28,61,90,0.01);">
@@ -1682,12 +1677,8 @@ elif selected_page == "Suppliers":
     <div style="font-size: 12.5px; color: #5B7A9C; margin-bottom: 15px;">Check whether at-risk items (LOW/OUT OF STOCK) could be reordered from a more reliable or cost-effective supplier.</div>
     """, unsafe_allow_html=True)
     
-    alt_list = get_api_data("/api/analytics/supplier_alternatives", "")
-    if not alt_list:
-        alt_list = [
-            {"product_id": 2, "sku": "PRD-0002", "product": "Greek Yogurt", "supplier_id": "SUP-003", "current_supplier_score": 74.0, "best_alt_supplier": "SUP-001", "best_alt_supplier_score": 87.5, "better_supplier_available": True, "stock_status": "LOW STOCK", "days_of_stock_left": 1.5}
-        ]
-        
+    alt_list = get_api_data("/api/analytics/supplier_alternatives", [])
+
     better_alts = [x for x in alt_list if x.get("better_supplier_available") == True]
     
     if better_alts:
@@ -1844,11 +1835,10 @@ elif selected_page == "AI_Agent":
         st.query_params["run"] = "false"
         st.rerun()
 
-    agent_proposal = st.session_state.get(
-        "agent_proposal", load_mock_json("agent_proposal.json"))
+    agent_proposal = st.session_state.get("agent_proposal", {})
     recs = st.session_state.get(
         "proposal_db",
-        agent_proposal["recommendations"])
+        agent_proposal.get("recommendations", []))
 
     # 1. Proposal Banner with interactive re-run button
     col_banner_info, col_banner_btn = st.columns([3.2, 0.8])
@@ -2058,13 +2048,7 @@ elif selected_page == "AI_Agent":
         """, unsafe_allow_html=True)
 
         budget_val = st.slider("Procurement Budget ($)", min_value=1000.0, max_value=40000.0, value=15000.0, step=500.0, key="procurement_budget_slider")
-        plan_list = get_api_data(f"/api/analytics/reorder_plan?budget={budget_val}", "")
-
-        # Fallback if backend is down
-        if not plan_list:
-            plan_list = [
-                {"sku": "PRD-0002", "product": "Greek Yogurt", "supplier_id": "SUP-003", "stock": 4, "reorder_point": 10.0, "days_left": 1.5, "status": "LOW STOCK", "order_qty": 6, "cost_price": 2.0, "order_cost": 12.0, "order_status": "APPROVED", "cumulative_spend": 12.0}
-            ]
+        plan_list = get_api_data(f"/api/analytics/reorder_plan?budget={budget_val}", [])
 
         if plan_list:
             df_p = pd.DataFrame(plan_list)
@@ -2221,181 +2205,3 @@ elif selected_page == "AI_Agent":
             </div>
             """
             st.markdown(right_card_html, unsafe_allow_html=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
