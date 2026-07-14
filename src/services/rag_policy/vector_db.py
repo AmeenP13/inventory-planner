@@ -18,10 +18,16 @@ def load_vector_db():
 
     vector_db = Chroma(
         persist_directory=str(DB_PATH),
-        embedding_function=embedding_model
+        embedding_function=embedding_model,
+        collection_name="inventory_policies"
     )
 
-    print(f"Database Path: {DB_PATH}")
-    print(f"Documents in DB: {vector_db._collection.count()}")
+    print(f"Database Path : {DB_PATH}")
+    print(f"Documents in Vector DB : {vector_db._collection.count()}")
 
     return vector_db
+
+
+if __name__ == "__main__":
+
+    load_vector_db()
