@@ -20,7 +20,7 @@ def rag_agent(state: State):
 
     try:
 
-        # Retrieve the top semantic matches
+        # Retrieve the most relevant policies
         response = search_policy(
             query=query,
             k=2
@@ -28,14 +28,11 @@ def rag_agent(state: State):
 
         policy = "No policy found."
 
-        if (
-            response["status"] == "success"
-            and response["count"] > 0
-        ):
+        if response["status"] == "success" and response["count"] > 0:
 
             results = response["results"]
 
-            # Use the highest ranked policy returned by ChromaDB
+            # Use the highest-ranked policy returned by semantic search
             policy = results[0]["content"]
 
         print(f"[RAG] Query  : {query}")
@@ -44,19 +41,14 @@ def rag_agent(state: State):
         state["policy"] = policy
         inventory["policy"] = policy
 
-        # Update inventory history
-        history = state.get(
-            "all_dates_inventory",
-            []
-        )
+        # Update latest inventory history
+        history = state.get("all_dates_inventory", [])
 
         if history:
             history[-1]["policy"] = policy
 
-        # Update next day prediction
-        next_day = state.get(
-            "next_day_inventory"
-        )
+        # Update next-day prediction
+        next_day = state.get("next_day_inventory")
 
         if isinstance(next_day, dict):
             next_day["policy"] = policy

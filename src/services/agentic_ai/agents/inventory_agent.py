@@ -2,7 +2,8 @@ from datetime import datetime, timedelta
 import requests
 
 from config import llm
-from state import State
+
+from src.services.agentic_ai.state import State
 
 BASE_URL = "http://127.0.0.1:8000"
 
@@ -12,32 +13,8 @@ def generate_policy_query(inventory):
     prompt = f"""
 You are an Inventory Policy Query Generator.
 
-Your task is to generate ONE semantic search query for retrieving the
-most relevant inventory policy from a vector database.
-
-The vector database contains hundreds of inventory policies covering
-different inventory situations such as:
-
-- Low stock
-- Stockout
-- Overstock
-- Reorder point
-- Replenishment
-- Safety stock
-- Lead time
-- Demand forecasting
-- Near expiry
-- Markdown
-- Quality inspection
-- Supplier delay
-- Inventory monitoring
-- Warehouse inventory
-- Customer complaints
-- Slow moving products
-- Fast moving products
-
-Analyze the inventory information below and identify the inventory
-condition.
+Your task is to generate ONE semantic search query for retrieving
+the most relevant inventory policy from a vector database.
 
 Inventory Details
 
@@ -56,35 +33,17 @@ Lead Time:
 Customer Rating:
 {inventory["customer_rating"]}
 
-Cost Price:
-{inventory["cost_price"]}
-
-Base Price:
-{inventory["base_price"]}
-
 Expiry Date:
 {inventory["expiry_date"]}
 
+Generate ONLY one semantic search query describing the
+inventory condition.
 
-Instructions
+Do not mention policy IDs.
+Do not mention Dynamic ROP, Markdown Tier or policy names.
+Do not generate recommendations.
 
-• Generate ONLY one semantic search query.
-
-• Do NOT generate recommendations.
-
-• Do NOT generate explanations.
-
-• Do NOT generate policy IDs.
-
-• Do NOT generate Dynamic ROP, Markdown Tier,
-  Quality Trigger or other policy names.
-
-• Focus only on describing the inventory condition.
-
-• The query should be flexible enough to retrieve
-  the most relevant policy from the complete policy PDF.
-
-Examples
+Examples:
 
 Inventory replenishment policy for low stock
 
@@ -92,27 +51,13 @@ Inventory stockout handling policy
 
 Inventory overstock management policy
 
-Inventory reorder point policy
-
-Inventory safety stock policy
-
-Inventory lead time policy
-
-Inventory demand forecasting policy
-
 Inventory markdown policy for near expiry
-
-Inventory quality inspection policy
-
-Inventory supplier delay policy
 
 Return ONLY the search query.
 """
 
     response = llm.invoke(prompt)
-
     return response.content.strip()
-
 
 def inventory_agent(state: State):
 

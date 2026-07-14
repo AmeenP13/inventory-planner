@@ -3,44 +3,23 @@ from src.services.agentic_ai.state import State
 
 
 def recommendation_agent(state: State):
-    """
-    Generate final inventory recommendation using Gemini.
-    Combines:
-    - Inventory data
-    - Demand analysis
-    - Risk assessment
-    - Retrieved company policy
-    """
 
     if state.get("error"):
         state["recommendation"] = f"Error: {state['error']}"
         return state
 
-
     inventory = state.get("inventory", {})
     demand = state.get("demand", {})
-    next_day = state.get("next_day_inventory", {})
     risk = state.get("risk", "N/A")
-
-
-    # Handle RAG policy object
-    policy_data = state.get("policy", {})
-
-    if isinstance(policy_data, dict):
-        policy = policy_data.get(
-            "content",
-            "No policy found."
-        )
-    else:
-        policy = policy_data
-
+    policy = state.get("policy", "No policy found.")
+    next_day = state.get("next_day_inventory", {})
 
     prompt = f"""
 You are an Autonomous Inventory Replenishment AI.
 
-Analyze the inventory situation and generate the final recommendation.
+Analyze the following information and generate the final inventory recommendation.
 
-Inventory Information:
+Inventory Details
 
 Product Name:
 {inventory.get("product_name")}
@@ -51,17 +30,14 @@ Current Stock:
 Quantity Sold:
 {inventory.get("quantity_sold")}
 
+Lead Time:
+{inventory.get("lead_time")}
+
 Customer Rating:
 {inventory.get("customer_rating")}
 
-Supplier ID:
-{inventory.get("supplier_id")}
 
-Lead Time:
-{inventory.get("lead_time")} days
-
-
-Demand Analysis:
+Demand Analysis
 
 Average Daily Sales:
 {demand.get("average_daily_sales")}
@@ -79,34 +55,27 @@ Demand Trend:
 {demand.get("trend")}
 
 
-Risk Assessment:
+Risk Assessment
 
 Risk Level:
 {risk}
 
 
-Next Day Inventory Forecast:
-
-{next_day}
-
-
-Company Inventory Policy:
+Retrieved Company Policy
 
 {policy}
 
 
-Generate output in this format:
+Next Day Inventory Prediction
 
+{next_day}
+
+
+Generate the response in the following format:
 
 AI Inventory Recommendation
 
 Product Name:
-Current Stock:
-Quantity Sold:
-Demand Trend:
-Risk Level:
-
-Company Policy:
 
 Decision:
 (REORDER NOW / MONITOR / DO NOT REORDER)
@@ -114,29 +83,19 @@ Decision:
 Recommendation:
 
 Reason:
-(Explain the decision using inventory data and company policy in 2-4 lines.)
+(2-4 lines based on inventory data, demand analysis,
+risk assessment and retrieved company policy.)
 """
-
 
     try:
 
         response = llm.invoke(prompt)
 
-        state["recommendation"] = (
-            response.content.strip()
-        )
-
+        state["recommendation"] = response.content.strip()
 
     except Exception as e:
 
-        state["error"] = (
-            f"LLM Error: {e}"
-        )
-
-        state["recommendation"] = (
-            "Failed to generate recommendation.\n"
-            f"Error: {e}"
-        )
-
+        state["error"] = f"LLM Error: {e}"
+        state["recommendation"] = "Failed to generate recommendation."
 
     return state
