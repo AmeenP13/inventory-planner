@@ -1,0 +1,37 @@
+[
+  {
+    "name": "TechFlow Ltd",
+    "reliability": 94,
+    "lead_time_days": 3,
+    "pending_orders": 2,
+    "mtd_spend": 12840
+  },
+  {
+    "name": "HealthFirst",
+    "reliability": 98,
+    "lead_time_days": 2,
+    "pending_orders": 1,
+    "mtd_spend": 8210
+  },
+  {
+    "name": "NaturaCo",
+    "reliability": 87,
+    "lead_time_days": 5,
+    "pending_orders": 0,
+    "mtd_spend": 4580
+  },
+  {
+    "name": "EcoWare",
+    "reliability": 91,
+    "lead_time_days": 4,
+    "pending_orders": 1,
+    "mtd_spend": 3920
+  },
+  {
+    "name": "ZenSupply",
+    "reliability": 83,
+    "lead_time_days": 6,
+    "pending_orders": 3,
+    "mtd_spend": 2340
+  }
+]

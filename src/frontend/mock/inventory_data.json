@@ -1,0 +1,14 @@
+[
+  {"sku": "PRD-0041", "product": "Wireless Earbuds Pro", "stock": 12, "days_left": 1.4, "supplier": "TechFlow Ltd", "status": "CRITICAL", "category": "Electronics"},
+  {"sku": "PRD-0087", "product": "Organic Green Tea (100pk)", "stock": 34, "days_left": 3.0, "supplier": "NaturaCo", "status": "LOW STOCK", "category": "Beverages"},
+  {"sku": "PRD-0123", "product": "Running Shoes X9", "stock": 3, "days_left": 3.6, "supplier": "StrideMakers", "status": "CRITICAL", "category": "Fitness"},
+  {"sku": "PRD-0193", "product": "Vitamin C Supplement", "stock": 210, "days_left": 14.3, "supplier": "HealthFirst", "status": "HEALTHY", "category": "Health"},
+  {"sku": "PRD-0205", "product": "Stainless Steel Water Bottle", "stock": 67, "days_left": 12.6, "supplier": "EcoWare", "status": "HEALTHY", "category": "Fitness"},
+  {"sku": "PRD-0241", "product": "Bluetooth Speaker Mini", "stock": 0, "days_left": 0.0, "supplier": "TechFlow Ltd", "status": "OUT OF STOCK", "category": "Electronics"},
+  {"sku": "PRD-0455", "product": "Foam Roller Recovery", "stock": 0, "days_left": 0.0, "supplier": "ActiveLife", "status": "OUT OF STOCK", "category": "Fitness"},
+  {"sku": "PRD-0501", "product": "Ultra-Quiet Noise Canceling Headphones", "stock": 45, "days_left": 5.0, "supplier": "SoundMaster Ltd", "status": "LOW STOCK", "category": "Electronics"},
+  {"sku": "PRD-0552", "product": "Premium Arabica Coffee Beans (1kg)", "stock": 150, "days_left": 10.0, "supplier": "Global Coffee Co", "status": "HEALTHY", "category": "Beverages"},
+  {"sku": "PRD-0418", "product": "Protein Powder Vanilla 2kg", "stock": 15, "days_left": 2.5, "supplier": "HealthFirst", "status": "LOW STOCK", "category": "Health"},
+  {"sku": "PRD-0347", "product": "USB-C Hub 7-Port", "stock": 5, "days_left": 1.5, "supplier": "TechFlow Ltd", "status": "CRITICAL", "category": "Electronics"},
+  {"sku": "PRD-0210", "product": "Green Tea Extract", "stock": 180, "days_left": 20.0, "supplier": "NaturaCo", "status": "HEALTHY", "category": "Health"}
+]
