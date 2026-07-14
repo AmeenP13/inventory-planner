@@ -20,28 +20,27 @@ def rag_agent(state: State):
 
     try:
 
-        # Retrieve the most relevant policies
-        response = search_policy(
-            query=query,
-            k=2
-        )
+        # Hybrid Search (SQLite + ChromaDB)
+        response = search_policy(query,k=1)
 
-        policy = "No policy found."
+        if response["status"] != "success":
+            state["error"] = response["message"]
+            state["policy"] = "No policy found."
+            return state
 
-        if response["status"] == "success" and response["count"] > 0:
+        result = response["result"]
+        policy = result["content"]
 
-            results = response["results"]
-
-            # Use the highest-ranked policy returned by semantic search
-            policy = results[0]["content"]
-
-        print(f"[RAG] Query  : {query}")
-        print(f"[RAG] Policy : {policy}")
+        print(f"[RAG] Semantic Query : {query}")
+        print(f"[RAG] Policy ID      : {result['policy_id']}")
+        print(f"[RAG] Policy Type    : {result['policy_type']}")
+        print(f"[RAG] Product        : {result['product']}")
+        print(f"[RAG] Retrieved Policy:\n{policy}")
 
         state["policy"] = policy
         inventory["policy"] = policy
 
-        # Update latest inventory history
+        # Update inventory history
         history = state.get("all_dates_inventory", [])
 
         if history:

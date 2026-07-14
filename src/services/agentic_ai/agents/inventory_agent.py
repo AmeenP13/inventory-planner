@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import requests
 
-from config import llm
+from src.services.agentic_ai.config import llm
 
 from src.services.agentic_ai.state import State
 
@@ -10,48 +10,50 @@ BASE_URL = "http://127.0.0.1:8000"
 
 def generate_policy_query(inventory):
 
+
     prompt = f"""
 You are an Inventory Policy Query Generator.
 
-Your task is to generate ONE semantic search query for retrieving
-the most relevant inventory policy from a vector database.
+Generate EXACTLY ONE semantic search query to retrieve the SINGLE MOST RELEVANT
+inventory policy from the company policy database.
 
 Inventory Details
 
-Product Name:
-{inventory["product_name"]}
+Product Name: {inventory["product_name"]}
+Current Stock: {inventory["current_stock"]}
+Quantity Sold: {inventory["quantity_sold"]}
+Lead Time: {inventory["lead_time"]} days
+Customer Rating: {inventory["customer_rating"]}
+Cost Price: {inventory["cost_price"]}
+Base Price: {inventory["base_price"]}
+Expiry Date: {inventory["expiry_date"]}
 
-Current Stock:
-{inventory["current_stock"]}
+Instructions
 
-Quantity Sold:
-{inventory["quantity_sold"]}
+1. Analyze the inventory condition.
+2. Select ONLY the most important inventory issue.
+3. ALWAYS include the PRODUCT NAME in the query.
+4. Generate ONLY ONE search query.
+5. Do NOT generate explanations.
+6. Do NOT generate recommendations.
+7. Do NOT combine multiple policy types.
 
-Lead Time:
-{inventory["lead_time"]} days
+Examples
 
-Customer Rating:
-{inventory["customer_rating"]}
+Apple has low stock:
+Inventory replenishment policy for Apple
 
-Expiry Date:
-{inventory["expiry_date"]}
+Grapes are out of stock:
+Inventory stockout handling policy for Grapes
 
-Generate ONLY one semantic search query describing the
-inventory condition.
+Mango has excess inventory:
+Inventory overstock management policy for Mango
 
-Do not mention policy IDs.
-Do not mention Dynamic ROP, Markdown Tier or policy names.
-Do not generate recommendations.
+Milk is near expiry:
+Inventory expiry management policy for Milk
 
-Examples:
-
-Inventory replenishment policy for low stock
-
-Inventory stockout handling policy
-
-Inventory overstock management policy
-
-Inventory markdown policy for near expiry
+Supplier delay for Rice:
+Inventory supplier delay policy for Rice
 
 Return ONLY the search query.
 """
