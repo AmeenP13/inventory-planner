@@ -13,6 +13,30 @@ def main():
     print("         STARTING STOCKMIND FULL STACK              ")
     print("====================================================")
     
+    # 0. Free ports 8000 and 8501 if already occupied
+    import socket as _sock
+    def _kill_port(port):
+        """Kill any process listening on the given port (Windows)."""
+        try:
+            result = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True, text=True
+            )
+            for line in result.stdout.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    parts = line.strip().split()
+                    pid = parts[-1]
+                    if pid.isdigit():
+                        subprocess.run(["taskkill", "/PID", pid, "/F"],
+                                       capture_output=True)
+                        print(f"[*] Freed port {port} (killed PID {pid})")
+        except Exception:
+            pass
+
+    _kill_port(8000)
+    _kill_port(8501)
+    time.sleep(1)  # Brief pause so OS releases the ports
+
     # 1. Start Backend (FastAPI)
     print("[*] Starting FastAPI Backend on http://127.0.0.1:8000 ...")
     backend_proc = subprocess.Popen(
@@ -24,7 +48,20 @@ def main():
     )
     
     # Wait for the backend port to start up
-    time.sleep(2)
+    print("[*] Waiting for FastAPI backend to bind to port 8000...")
+    import socket
+    backend_ready = False
+    for _ in range(15):
+        try:
+            with socket.create_connection(("127.0.0.1", 8000), timeout=1):
+                backend_ready = True
+                break
+        except OSError:
+            time.sleep(1)
+    if backend_ready:
+        print("[+] FastAPI backend is ready!")
+    else:
+        print("[!] Warning: FastAPI backend did not start within 15 seconds. Proceeding anyway...")
     
     # 2. Start Frontend (Streamlit)
     print("[*] Starting Streamlit Frontend on http://localhost:8501 ...")

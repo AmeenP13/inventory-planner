@@ -138,6 +138,30 @@ def approve_order(order: OrderApproval, db: Session = Depends(database.get_db)):
     if not product:
         raise HTTPException(status_code=404, detail=f"Product {order.product_id} not found")
 
+    # Actually update the current stock in the database
+    from sqlalchemy import desc
+    latest_record = (
+        db.query(InventoryDailyORM)
+        .filter(InventoryDailyORM.product_id == order.product_id)
+        .order_by(desc(InventoryDailyORM.date))
+        .first()
+    )
+    if latest_record:
+        latest_record.current_stock += order.quantity
+    else:
+        # Fallback if no record exists: create one for the latest date on record
+        max_date = db.query(func.max(InventoryDailyORM.date)).scalar()
+        if not max_date:
+            import datetime
+            max_date = datetime.date.today().strftime("%Y-%m-%d")
+        latest_record = InventoryDailyORM(
+            product_id=order.product_id,
+            date=max_date,
+            current_stock=order.quantity
+        )
+        db.add(latest_record)
+
+    db.commit()
     invalidate_caches()
     return {
         "status": "approved",
@@ -145,7 +169,7 @@ def approve_order(order: OrderApproval, db: Session = Depends(database.get_db)):
         "product_name": product.product_name,
         "quantity": order.quantity,
         "supplier_id": order.supplier_id,
-        "notes": order.notes,
+        "notes": order.notes or "Restocked via alert dialog",
     }
 
 

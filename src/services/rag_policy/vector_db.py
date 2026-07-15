@@ -8,7 +8,12 @@ BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "chroma_db"
 
 
+_VECTOR_DB_CACHE = None
+
 def load_vector_db():
+    global _VECTOR_DB_CACHE
+    if _VECTOR_DB_CACHE is not None:
+        return _VECTOR_DB_CACHE
 
     embedding_model = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2",
@@ -16,16 +21,16 @@ def load_vector_db():
         encode_kwargs={"normalize_embeddings": True}
     )
 
-    vector_db = Chroma(
+    _VECTOR_DB_CACHE = Chroma(
         persist_directory=str(DB_PATH),
         embedding_function=embedding_model,
         collection_name="inventory_policies"
     )
 
     print(f"Database Path : {DB_PATH}")
-    print(f"Documents in Vector DB : {vector_db._collection.count()}")
+    print(f"Documents in Vector DB : {_VECTOR_DB_CACHE._collection.count()}")
 
-    return vector_db
+    return _VECTOR_DB_CACHE
 
 
 if __name__ == "__main__":
