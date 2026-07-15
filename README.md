@@ -37,23 +37,18 @@ python scripts/seed_database.py
 
 ## 🚀 Running the Application
 
-To run the full stack, you need to start **both** the backend API and the frontend dashboard. 
+To launch both the FastAPI backend and the Streamlit frontend UI simultaneously, simply run the unified launcher script:
 
-### Step A: Start the FastAPI Backend Server
-In your terminal, run the following command to launch the backend:
 ```bash
-python -m uvicorn src.backend.main:app --host 127.0.0.1 --port 8000
+python run_app.py
 ```
-- **What this does**: Starts the backend API. On startup, it automatically pre-loads the Chroma vector database and embedding model in a background thread to prevent latency timeouts.
-- **Backend URL**: [http://127.0.0.1:8000](http://127.0.0.1:8000)
 
-### Step B: Start the Streamlit Frontend UI
-Open a **new, separate terminal window/tab**, navigate to the project directory, and run the following command:
-```bash
-python -m streamlit run src/frontend/app.py --server.port 8501
-```
-- **What this does**: Launches the interactive dashboard.
-- **Frontend URL**: Open [http://localhost:8501](http://localhost:8501) in your web browser.
+* **What this does**: 
+  * Automatically frees up ports `8000` (Backend) and `8501` (Frontend) if they are currently in use.
+  * Launches the FastAPI backend on [http://127.0.0.1:8000](http://127.0.0.1:8000) and the Streamlit frontend.
+  * Forwards real-time logs from both services to your terminal.
+  * Gracefully shuts down both processes when you press `CTRL+C`.
+* **Accessing the Dashboard**: Open [http://localhost:8501](http://localhost:8501) in your web browser.
 
 ---
 
