@@ -28,12 +28,22 @@ def demand_agent(state: State):
 
     row = product.iloc[0]
 
+    # Derive a simple trend label from stock_status
+    status = row["stock_status"]
+    if status == "OUT_OF_STOCK":
+        trend = "Critical – Out of Stock"
+    elif status == "LOW_STOCK":
+        trend = "Declining – Low Stock"
+    else:
+        trend = "Stable"
+
     state["demand"] = {
         "average_daily_sales": float(row["avg_daily_sales"]),
         "reorder_point": float(row["reorder_point"]),
         "safety_stock": float(row["safety_stock"]),
         "days_of_stock_left": float(row["days_of_stock_left"]),
-        "stock_status": row["stock_status"],
+        "stock_status": status,
+        "trend": trend,
     }
 
     for record in inventory_history:
@@ -42,6 +52,7 @@ def demand_agent(state: State):
         record["safety_stock"] = state["demand"]["safety_stock"]
         record["days_of_stock_left"] = state["demand"]["days_of_stock_left"]
         record["stock_status"] = state["demand"]["stock_status"]
+        record["trend"] = state["demand"]["trend"]
 
     next_day = state.get("next_day_inventory")
     if isinstance(next_day, dict):
@@ -50,5 +61,6 @@ def demand_agent(state: State):
         next_day["safety_stock"] = state["demand"]["safety_stock"]
         next_day["days_of_stock_left"] = state["demand"]["days_of_stock_left"]
         next_day["stock_status"] = state["demand"]["stock_status"]
+        next_day["trend"] = state["demand"]["trend"]
 
     return state

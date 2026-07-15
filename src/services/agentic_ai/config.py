@@ -5,5 +5,6 @@ load_dotenv()
 
 llm = init_chat_model(
     'gemini-2.5-flash',
-    model_provider='google-genai'
+    model_provider='google-genai',
+    max_retries=0
 )

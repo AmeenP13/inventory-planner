@@ -53,7 +53,32 @@ def reload_all_data():
     st.session_state.suppliers_data = get_api_data("/api/suppliers_report", [])
 
 
-# Handle restock/snooze/approval actions from query parameters before loading page state
+
+if "overview_data" not in st.session_state or not st.session_state.overview_data:
+    st.session_state.overview_data = get_api_data("/api/overview", {})
+
+if "inventory_db" not in st.session_state or st.session_state.inventory_db.empty:
+    inventory_data = get_api_data("/api/inventory_report", [])
+    st.session_state.inventory_db = pd.DataFrame(inventory_data if inventory_data else [])
+
+if "demand_data" not in st.session_state or not st.session_state.demand_data:
+    st.session_state.demand_data = get_api_data("/api/demand_report", {})
+
+if "suppliers_data" not in st.session_state or not st.session_state.suppliers_data:
+    st.session_state.suppliers_data = get_api_data("/api/suppliers_report", [])
+
+overview_data = st.session_state.overview_data
+inventory_data = st.session_state.inventory_db.to_dict('records') if hasattr(st.session_state.inventory_db, "to_dict") else list(st.session_state.inventory_db)
+demand_data = st.session_state.demand_data
+suppliers_data = st.session_state.suppliers_data
+
+if "agent_proposal" not in st.session_state or not st.session_state.agent_proposal:
+    st.session_state.agent_proposal = get_api_data("/api/proposal", {})
+
+if "proposal_db" not in st.session_state and st.session_state.agent_proposal:
+    st.session_state.proposal_db = st.session_state.agent_proposal.get("recommendations", [])
+
+# Handle restock/snooze/approval actions from query parameters AFTER loading page state
 if "action" in st.query_params:
     action = st.query_params["action"]
     if action == "restock":
@@ -102,7 +127,8 @@ if "action" in st.query_params:
                 }, timeout=5)
                 if resp.status_code == 200:
                     st.session_state.proposal_db[idx]["approved"] = True
-                    st.session_state[f"approved_{sku}"] = True
+                    st.session_state[f"approved_backend_{sku}"] = True
+                    st.session_state[f"rejected_{sku}"] = False
                     st.toast(f"✅ Approved & saved order: {item['product']} ({item['units']} units)", icon="📦")
                     # Invalidate session cache and force reload
                     reload_all_data()
@@ -118,7 +144,8 @@ if "action" in st.query_params:
             if recs and idx < len(recs):
                 item = recs[idx]
                 st.session_state.proposal_db[idx]["approved"] = False
-                st.session_state[f"approved_{sku}"] = False
+                st.session_state[f"approved_backend_{sku}"] = False
+                st.session_state[f"rejected_{sku}"] = True
                 st.toast(f"❌ Rejected order: {item['product']}", icon="🚫")
                 # Invalidate session cache and force reload
                 reload_all_data()
@@ -130,31 +157,6 @@ if "action" in st.query_params:
     st.query_params.clear()
     st.query_params.update(page=current_page)
     st.rerun()
-
-
-if "overview_data" not in st.session_state:
-    st.session_state.overview_data = get_api_data("/api/overview", {})
-
-if "inventory_db" not in st.session_state:
-    inventory_data = get_api_data("/api/inventory_report", [])
-    st.session_state.inventory_db = pd.DataFrame(inventory_data if inventory_data else [])
-
-if "demand_data" not in st.session_state:
-    st.session_state.demand_data = get_api_data("/api/demand_report", {})
-
-if "suppliers_data" not in st.session_state:
-    st.session_state.suppliers_data = get_api_data("/api/suppliers_report", [])
-
-overview_data = st.session_state.overview_data
-inventory_data = st.session_state.inventory_db.to_dict('records') if hasattr(st.session_state.inventory_db, "to_dict") else list(st.session_state.inventory_db)
-demand_data = st.session_state.demand_data
-suppliers_data = st.session_state.suppliers_data
-
-if "agent_proposal" not in st.session_state:
-    st.session_state.agent_proposal = get_api_data("/api/proposal", {})
-
-if "proposal_db" not in st.session_state and st.session_state.agent_proposal:
-    st.session_state.proposal_db = st.session_state.agent_proposal.get("recommendations", [])
 
 # Notify user of low stock alerts on initial load
 if "notified_low_stock" not in st.session_state:
@@ -790,16 +792,6 @@ st.markdown(f"""
         <div class="header-title">{current_title}</div>
         <div class="header-subtitle">{current_subtitle}</div>
     </div>
-    <div class="header-right">
-        <input type="text" class="search-input-mock" placeholder="Search products, SKUs, suppliers..." />
-        <div class="bell-icon-container">
-            <span>🔔</span>
-            <div class="bell-badge"></div>
-        </div>
-        <a href="#" class="export-btn">
-            <span>📥</span> Export Report
-        </a>
-    </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -923,8 +915,8 @@ if selected_page == "Overview":
                     'Units Sold:Q', title=None), color=alt.Color(
                     'Category:N', scale=alt.Scale(
                         domain=[
-                            'Electronics', 'Beverages', 'Health', 'Fitness'], range=[
-                                '#00B4D8', '#4CAF50', '#FF9800', '#9C27B0']), legend=None))
+                            'Produce', 'Dairy', 'Bakery', 'Beverages', 'Meat', 'Groceries'], range=[
+                                '#FF6B6B', '#4DABF7', '#FCC419', '#51CF66', '#FF922B', '#BE4BDB']), legend=None))
             lines = base.mark_line(interpolate='monotone', strokeWidth=3.5)
             areas = base.mark_area(interpolate='monotone', opacity=0.08)
             chart = (areas + lines).properties(height=260).configure_axis(
@@ -939,11 +931,13 @@ if selected_page == "Overview":
 
         # Legend custom rendering in HTML
         st.markdown("""
-        <div style="display: flex; justify-content: center; gap: 20px; font-size: 13px; font-weight: 600; margin-top: -10px; margin-bottom: 25px;">
-            <span style="color: #00B4D8; display: flex; align-items: center; gap: 6px;">● Electronics</span>
-            <span style="color: #4CAF50; display: flex; align-items: center; gap: 6px;">● Beverages</span>
-            <span style="color: #FF9800; display: flex; align-items: center; gap: 6px;">● Health</span>
-            <span style="color: #9C27B0; display: flex; align-items: center; gap: 6px;">● Fitness</span>
+        <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; font-size: 13px; font-weight: 600; margin-top: -10px; margin-bottom: 25px;">
+            <span style="color: #FF6B6B; display: flex; align-items: center; gap: 6px;">● Produce</span>
+            <span style="color: #4DABF7; display: flex; align-items: center; gap: 6px;">● Dairy</span>
+            <span style="color: #FCC419; display: flex; align-items: center; gap: 6px;">● Bakery</span>
+            <span style="color: #51CF66; display: flex; align-items: center; gap: 6px;">● Beverages</span>
+            <span style="color: #FF922B; display: flex; align-items: center; gap: 6px;">● Meat</span>
+            <span style="color: #BE4BDB; display: flex; align-items: center; gap: 6px;">● Groceries</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1100,20 +1094,12 @@ elif selected_page == "Inventory":
                 "⏱️",
                 "purple"),
             unsafe_allow_html=True)
-
     st.write("")
 
     # Filters Row
-    st.markdown("""
-    <style>
-    div[data-testid="column"] {
-        padding: 0px 5px !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    col_filt_search, col_filt_cat, col_filt_sup, col_filt_stat = st.columns([
-                                                                            1.5, 1, 1, 1])
+    col_filt_search, col_filt_cat, col_filt_sup, col_filt_stat, col_filt_sort = st.columns([
+        1.5, 1, 1, 1, 1
+    ])
 
     with col_filt_search:
         search_query = st.text_input(
@@ -1145,14 +1131,27 @@ elif selected_page == "Inventory":
             "Status select",
             statuses,
             label_visibility="collapsed")
+    with col_filt_sort:
+        sort_options = [
+            "Sort by SKU (A-Z)",
+            "Sort by Product (A-Z)",
+            "Sort by Stock (Low to High)",
+            "Sort by Stock (High to Low)",
+            "Sort by Days Left (Low to High)",
+            "Sort by Days Left (High to Low)"
+        ]
+        selected_sort = st.selectbox(
+            "Sort select",
+            sort_options,
+            label_visibility="collapsed")
 
     # Apply Filtering
     df_filtered = df_inv.copy()
     if search_query:
         df_filtered = df_filtered[
-            df_filtered["product"].str.contains(search_query, case=False) |
-            df_filtered["sku"].str.contains(search_query, case=False) |
-            df_filtered["supplier"].str.contains(search_query, case=False)
+            df_filtered["product"].str.contains(search_query, case=False, na=False) |
+            df_filtered["sku"].str.contains(search_query, case=False, na=False) |
+            df_filtered["supplier"].str.contains(search_query, case=False, na=False)
         ]
     if selected_cat != "All Categories":
         df_filtered = df_filtered[df_filtered["category"] == selected_cat]
@@ -1161,9 +1160,23 @@ elif selected_page == "Inventory":
     if selected_stat != "All Statuses":
         df_filtered = df_filtered[df_filtered["status"] == selected_stat]
 
-    # Render Table Header (Grid Layout matching original UI exactly)
+    # Apply Sorting
+    if selected_sort == "Sort by SKU (A-Z)":
+        df_filtered = df_filtered.sort_values("sku")
+    elif selected_sort == "Sort by Product (A-Z)":
+        df_filtered = df_filtered.sort_values("product")
+    elif selected_sort == "Sort by Stock (Low to High)":
+        df_filtered = df_filtered.sort_values("stock")
+    elif selected_sort == "Sort by Stock (High to Low)":
+        df_filtered = df_filtered.sort_values("stock", ascending=False)
+    elif selected_sort == "Sort by Days Left (Low to High)":
+        df_filtered = df_filtered.sort_values("days_left")
+    elif selected_sort == "Sort by Days Left (High to Low)":
+        df_filtered = df_filtered.sort_values("days_left", ascending=False)
+
+    # Render Table Header (Grid Layout - NO Actions column)
     st.markdown("""
-    <div style="display: grid; grid-template-columns: 1.15fr 2fr 0.7fr 1.4fr 1.5fr 1.2fr 0.4fr; 
+    <div style="display: grid; grid-template-columns: 1.15fr 2fr 0.7fr 1.4fr 1.5fr 1.2fr; 
                 background-color: #F8FAFC; border: 1px solid #E4EDF5; border-radius: 12px 12px 0 0; 
                 font-weight: 600; color: #5B7A9C; font-size: 13px; align-items: center; min-height: 48px;">
         <span style="padding: 12px 16px;">SKU</span>
@@ -1172,7 +1185,6 @@ elif selected_page == "Inventory":
         <span style="padding: 12px 16px;">Days Left</span>
         <span style="padding: 12px 16px;">Supplier</span>
         <span style="padding: 12px 16px;">Status</span>
-        <span style="padding: 12px 16px; text-align: center;">Actions</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1208,133 +1220,33 @@ elif selected_page == "Inventory":
         _row_bg   = "#FFF7ED" if _flagged else ("#FFFFFF" if _ri % 2 == 0 else "#F8FAFC")
         _flag_border = "border-left:3px solid #F59E0B;" if _flagged else "border-left:3px solid transparent;"
 
-        _c_data, _c_btn = st.columns([12, 1], gap="small")
-
-        with _c_data:
-            st.markdown(f"""
-            <div style="display:grid; grid-template-columns:1.1fr 2fr 0.7fr 1.4fr 1.5fr 1.2fr;
-                         background-color:{_row_bg}; border-bottom:1px solid #E4EDF5;
-                         {_flag_border} align-items:center; min-height:54px;">
-                <span style="padding:12px 16px; font-family:monospace; font-size:13px;
-                              font-weight:500; color:#1C3D5A;">{_sku}</span>
-                <span style="padding:12px 16px; font-weight:600; color:#1C3D5A;">
-                    {_product}{'&nbsp;🚩' if _flagged else ''}
-                </span>
-                <span style="padding:12px 16px; font-weight:700; color:{_stock_color};">{_stock}</span>
-                <span style="padding:12px 16px;">
-                    <span style="display:inline-flex; align-items:center; gap:8px;">
-                        <span style="display:inline-block; background:#E2E8F0; width:50px; height:6px;
-                                      border-radius:3px; overflow:hidden; vertical-align:middle;">
-                            <span style="display:block; background:{_bc}; width:{_pct}%; height:100%;"></span>
-                        </span>
-                        <span style="color:{_dc}; font-weight:600; font-size:13px;">{_days_left}d</span>
+        st.markdown(f"""
+        <div style="display:grid; grid-template-columns:1.15fr 2fr 0.7fr 1.4fr 1.5fr 1.2fr;
+                     background-color:{_row_bg}; border-bottom:1px solid #E4EDF5;
+                     {_flag_border} align-items:center; min-height:54px;">
+            <span style="padding:12px 16px; font-family:monospace; font-size:13px;
+                          font-weight:500; color:#1C3D5A;">{_sku}</span>
+            <span style="padding:12px 16px; font-weight:600; color:#1C3D5A;">
+                {_product}{'&nbsp;🚩' if _flagged else ''}
+            </span>
+            <span style="padding:12px 16px; font-weight:700; color:{_stock_color};">{_stock}</span>
+            <span style="padding:12px 16px;">
+                <span style="display:inline-flex; align-items:center; gap:8px;">
+                    <span style="display:inline-block; background:#E2E8F0; width:50px; height:6px;
+                                  border-radius:3px; overflow:hidden; vertical-align:middle;">
+                        <span style="display:block; background:{_bc}; width:{_pct}%; height:100%;"></span>
                     </span>
+                    <span style="color:{_dc}; font-weight:600; font-size:13px;">{_days_left}d</span>
                 </span>
-                <span style="padding:12px 16px; color:#4A607A;">{_supplier}</span>
-                <span style="padding:12px 16px;">
-                    <span style="background:{_sbg}; color:{_sfg}; padding:3px 8px; border-radius:6px;
-                                  font-size:11px; font-weight:700; text-transform:uppercase;
-                                  border:1px solid {_sfg}20;">{_su}</span>
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with _c_btn:
-            with st.popover("⋮", use_container_width=True):
-                st.markdown(f"**{_product}**")
-                st.caption(f"`{_sku}` · {_category}")
-                st.divider()
-
-                # 👁 View / hide details
-                if st.button("👁  View Details", key=f"_vd_{_sku}", use_container_width=True):
-                    _k = f"_det_{_sku}"
-                    st.session_state[_k] = not st.session_state.get(_k, False)
-
-                # 📦 Request Restock → navigate to AI Agent page
-                if st.button("📦  Request Restock", key=f"_rr_{_sku}", use_container_width=True):
-                    st.query_params["page"] = "AI_Agent"
-                    st.toast(f"📦 Restock request raised for **{_product}**")
-                    st.rerun()
-
-                # 🚩 Flag / unflag
-                _fl_lbl = "✅  Remove Flag" if _flagged else "🚩  Flag Issue"
-                if st.button(_fl_lbl, key=f"_fl_{_sku}", use_container_width=True):
-                    st.session_state[f"_flag_{_sku}"] = not _flagged
-                    st.toast(f"{'✅ Flag removed' if _flagged else '🚩 Flagged'}: {_product}")
-
-                # ✏️ Toggle inline stock editor
-                if st.button("✏️  Edit Stock", key=f"_ed_{_sku}", use_container_width=True):
-                    _ek = f"_edit_{_sku}"
-                    st.session_state[_ek] = not st.session_state.get(_ek, False)
-
-        # ── Expanded Detail Card ──────────────────────────────────────────────
-        if st.session_state.get(f"_det_{_sku}", False):
-            st.markdown(f"""
-            <div style="background:#EBF3FC; border:1px solid #BFE3F9; border-radius:0 0 8px 8px;
-                         padding:14px 20px; margin-bottom:4px; display:grid;
-                         grid-template-columns:repeat(5,1fr); gap:12px; font-size:12px;">
-                <div><span style="color:#5B7A9C;display:block;font-size:10px;text-transform:uppercase;font-weight:600;">SKU</span>
-                     <span style="font-weight:700;color:#1C3D5A;font-family:monospace;">{_sku}</span></div>
-                <div><span style="color:#5B7A9C;display:block;font-size:10px;text-transform:uppercase;font-weight:600;">Category</span>
-                     <span style="font-weight:700;color:#1C3D5A;">{_category}</span></div>
-                <div><span style="color:#5B7A9C;display:block;font-size:10px;text-transform:uppercase;font-weight:600;">Stock</span>
-                     <span style="font-weight:700;color:{_stock_color};">{_stock} units</span></div>
-                <div><span style="color:#5B7A9C;display:block;font-size:10px;text-transform:uppercase;font-weight:600;">Days Left</span>
-                     <span style="font-weight:700;color:{_dc};">{_days_left}d</span></div>
-                <div><span style="color:#5B7A9C;display:block;font-size:10px;text-transform:uppercase;font-weight:600;">Supplier</span>
-                     <span style="font-weight:700;color:#1C3D5A;">{_supplier}</span></div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # ── Inline Stock Edit Form ────────────────────────────────────────────
-        if st.session_state.get(f"_edit_{_sku}", False):
-            _ec1, _ec2, _ec3, _ec4 = st.columns([1.5, 2.0, 1.0, 0.8])
-            with _ec1:
-                _new_stock = st.number_input(
-                    f"Stock for {_product}",
-                    min_value=0, value=_stock, step=1,
-                    key=f"_nsi_{_sku}"
-                )
-            with _ec2:
-                _curr_exp = _row.get("expiry_date", "")
-                if pd.isna(_curr_exp) or _curr_exp is None:
-                    _curr_exp = ""
-                _new_expiry = st.text_input(
-                    f"Expiry Date (YYYY-MM-DD)",
-                    value=str(_curr_exp),
-                    key=f"_nei_{_sku}",
-                    placeholder="YYYY-MM-DD"
-                )
-            with _ec3:
-                st.write("") # Spacer to align
-                st.write("") # Spacer to align
-                if st.button("💾 Save", key=f"_sv_{_sku}", use_container_width=True):
-                    product_id = int(_sku.split("-")[1])
-                    _record_date = _row.get("date", "2026-07-09")
-                    try:
-                        resp = requests.post(f"{API_BASE_URL}/api/update_inventory", json={
-                            "product_id": product_id,
-                            "date": _record_date,
-                            "current_stock": int(_new_stock),
-                            "expiry_date": _new_expiry if _new_expiry.strip() else None
-                        }, timeout=10)
-                        if resp.status_code == 200:
-                            st.toast(f"✅ Saved to database: {_product} ({_new_stock} units)", icon="💾")
-                            reload_all_data()
-                            if f"_edit_{_sku}" in st.session_state:
-                                del st.session_state[f"_edit_{_sku}"]
-                            st.rerun()
-                        else:
-                            st.error(f"Failed to update stock: {resp.text}")
-                    except Exception as e:
-                        st.error(f"Error connecting to backend: {e}")
-            with _ec4:
-                st.write("") # Spacer to align
-                st.write("") # Spacer to align
-                if st.button("✕ Cancel", key=f"_cv_{_sku}", use_container_width=True):
-                    if f"_edit_{_sku}" in st.session_state:
-                        del st.session_state[f"_edit_{_sku}"]
-                    st.rerun()
+            </span>
+            <span style="padding:12px 16px; color:#4A607A;">{_supplier}</span>
+            <span style="padding:12px 16px;">
+                <span style="background:{_sbg}; color:{_sfg}; padding:3px 8px; border-radius:6px;
+                              font-size:11px; font-weight:700; text-transform:uppercase;
+                              border:1px solid {_sfg}20;">{_su}</span>
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Results summary
     st.markdown(f"""
@@ -1384,15 +1296,19 @@ elif selected_page == "Demand":
                 'Category:N',
                 scale=alt.Scale(
                     domain=[
-                        'Electronics',
+                        'Produce',
+                        'Dairy',
+                        'Bakery',
                         'Beverages',
-                        'Health',
-                        'Fitness'],
+                        'Meat',
+                        'Groceries'],
                     range=[
-                        '#00B4D8',
-                        '#4CAF50',
-                        '#FF9800',
-                        '#9C27B0']),
+                        '#FF6B6B',
+                        '#4DABF7',
+                        '#FCC419',
+                        '#51CF66',
+                        '#FF922B',
+                        '#BE4BDB']),
                 title=None)).properties(
             height=260).configure_axis(
             gridOpacity=0.2,
@@ -1427,15 +1343,19 @@ elif selected_page == "Demand":
                 'category:N',
                 scale=alt.Scale(
                     domain=[
-                        'Electronics',
+                        'Produce',
+                        'Dairy',
+                        'Bakery',
                         'Beverages',
-                        'Health',
-                        'Fitness'],
+                        'Meat',
+                        'Groceries'],
                     range=[
-                        '#00B4D8',
-                        '#4CAF50',
-                        '#FF9800',
-                        '#9C27B0']),
+                        '#FF6B6B',
+                        '#4DABF7',
+                        '#FCC419',
+                        '#51CF66',
+                        '#FF922B',
+                        '#BE4BDB']),
                 title=None)).properties(
             height=260).configure_axis(
             gridOpacity=0.2,
@@ -1904,7 +1824,7 @@ elif selected_page == "AI_Agent":
                 # Actual backend API trigger
                 try:
                     res = requests.post(
-                        f"{API_BASE_URL}/api/replenish", timeout=60)
+                        f"{API_BASE_URL}/api/replenish", timeout=300)
                     if res.status_code == 200:
                         st.session_state.agent_proposal = res.json()
                         st.session_state.proposal_db = st.session_state.agent_proposal[
@@ -1991,16 +1911,28 @@ elif selected_page == "AI_Agent":
             st.query_params["run"] = "true"
             st.rerun()
 
-    # 2. RAG policy context log card
     st.html(f"""
-    <div style="background-color: #FFF9E6; border: 1px solid #FFE0B2; border-radius: 8px; padding: 15px 20px; display: flex; align-items: flex-start; gap: 15px; margin-bottom: 25px;">
+    <div style="background-color: #FFF9E6; border: 1px solid #FFE0B2; border-radius: 8px; padding: 15px 20px; display: flex; align-items: flex-start; gap: 15px; margin-bottom: 15px;">
         <div style="font-size: 24px; margin-top: -2px;">📚</div>
         <div>
-            <div style="font-weight: 700; color: #D97706; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;">RAG POLICY CONTEXT RETRIEVED</div>
+            <div style="font-weight: 700; color: #D97706; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;">RAG POLICY QUERY GENERATED</div>
             <div style="font-size: 13px; color: #78350F; line-height: 1.5;">{proposal_rag_context}</div>
         </div>
     </div>
     """)
+
+    # Render detailed policy log per product
+    policies_list = agent_proposal.get("policies_per_item", [])
+    if policies_list:
+        with st.expander("🔍 View Detailed Policy Log per Product"):
+            for p_item in policies_list:
+                st.markdown(f"### {p_item['product']} (`{p_item['sku']}`)")
+                col1, col2 = st.columns([1, 4])
+                col1.metric("Risk Level", p_item['risk'])
+                col2.info(p_item['policy'])
+                st.divider()
+
+    st.write("")
 
     # Define tabs for Day 4 task
     tab_orders, tab_report = st.tabs(
@@ -2020,8 +1952,11 @@ elif selected_page == "AI_Agent":
                 use_container_width=True):
                 approved_count = 0
                 for r_idx, item in enumerate(recs):
-                    if not st.session_state.get(f"approved_{item['sku']}", item["approved"]):
-                        product_id = int(item['sku'].split("-")[1])
+                    sku = item['sku']
+                    is_rej = st.session_state.get(f"rejected_{sku}", False)
+                    is_app = st.session_state.get(f"approved_backend_{sku}", False)
+                    if not is_rej and not is_app:
+                        product_id = int(sku.split("-")[1])
                         try:
                             resp = requests.post(f"{API_BASE_URL}/api/approve_order", json={
                                 "product_id": product_id,
@@ -2031,7 +1966,8 @@ elif selected_page == "AI_Agent":
                             }, timeout=5)
                             if resp.status_code == 200:
                                 st.session_state.proposal_db[r_idx]["approved"] = True
-                                st.session_state[f"approved_{item['sku']}"] = True
+                                st.session_state[f"approved_backend_{sku}"] = True
+                                st.session_state[f"rejected_{sku}"] = False
                                 approved_count += 1
                         except Exception:
                             pass
@@ -2042,20 +1978,33 @@ elif selected_page == "AI_Agent":
 
         # Render recommended orders list
         for idx, item in enumerate(recs):
-            is_approved = st.session_state.get(
-                f"approved_{item['sku']}", item["approved"])
+            sku = item['sku']
+            is_rejected = st.session_state.get(f"rejected_{sku}", False)
+            is_approved = st.session_state.get(f"approved_backend_{sku}", False)
             is_urgent = item["urgency"] == "URGENT ORDER"
 
             # Color coding state matching
-            card_bg = "#FFFFFF" if is_approved else "#F8FAFC"
-            card_opacity = "1.0" if is_approved else "0.55"
-            border_color = (
-                "#EF4444" if is_urgent else "#F59E0B") if is_approved else "#94A3B8"
-            badge_bg = (
-                "#FEE2E2" if is_urgent else "#FEF3C7") if is_approved else "#E2E8F0"
-            badge_fg = (
-                "#EF4444" if is_urgent else "#D97706") if is_approved else "#64748B"
-            urg_text = item["urgency"] if is_approved else "REJECTED"
+            if is_approved:
+                card_bg = "#ECFDF5"
+                card_opacity = "1.0"
+                border_color = "#10B981"
+                badge_bg = "#D1FAE5"
+                badge_fg = "#10B981"
+                urg_text = "APPROVED"
+            elif is_rejected:
+                card_bg = "#F8FAFC"
+                card_opacity = "0.55"
+                border_color = "#94A3B8"
+                badge_bg = "#E2E8F0"
+                badge_fg = "#64748B"
+                urg_text = "REJECTED"
+            else:
+                card_bg = "#FFFFFF"
+                card_opacity = "1.0"
+                border_color = "#EF4444" if is_urgent else "#F59E0B"
+                badge_bg = "#FEE2E2" if is_urgent else "#FEF3C7"
+                badge_fg = "#EF4444" if is_urgent else "#D97706"
+                urg_text = item["urgency"]
 
             # Render item columns
             col_desc, col_units, col_vendor, col_action_btns = st.columns([
@@ -2092,16 +2041,28 @@ elif selected_page == "AI_Agent":
                 """, unsafe_allow_html=True)
 
             with col_action_btns:
-                # Render the buttons as custom styled HTML links inside a single container to prevent layout/click issues
-                approve_link = f"/?page=AI_Agent&action=approve_rec&sku={item['sku']}&idx={idx}"
-                reject_link = f"/?page=AI_Agent&action=reject_rec&sku={item['sku']}&idx={idx}"
+                approve_link = f"/?page=AI_Agent&action=approve_rec&sku={sku}&idx={idx}"
+                reject_link = f"/?page=AI_Agent&action=reject_rec&sku={sku}&idx={idx}"
                 
-                btn_html = f"""
-                <div style="background-color: {card_bg}; opacity: {card_opacity}; border-top: 1px solid #E4EDF5; border-bottom: 1px solid #E4EDF5; border-right: 1px solid #E4EDF5; border-radius: 0 8px 8px 0; min-height: 85px; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                    <a href="{approve_link}" target="_self" style="flex: 1; text-align: center; background-color: #F1F5F9; color: #10B981; padding: 10px 0; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 14px; display: block; line-height: 1; border: 1px solid #E2E8F0;" title="Approve Order">✓</a>
-                    <a href="{reject_link}" target="_self" style="flex: 1; text-align: center; background-color: #F1F5F9; color: #EF4444; padding: 10px 0; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 14px; display: block; line-height: 1; border: 1px solid #E2E8F0;" title="Reject Order">✗</a>
-                </div>
-                """
+                if is_approved:
+                    btn_html = f"""
+                    <div style="background-color: {card_bg}; opacity: 1.0; border-top: 1px solid #E4EDF5; border-bottom: 1px solid #E4EDF5; border-right: 1px solid #E4EDF5; border-radius: 0 8px 8px 0; min-height: 85px; padding: 10px; display: flex; align-items: center; justify-content: center;">
+                        <span style="color: #10B981; font-weight: 700; font-size: 18px;">✅</span>
+                    </div>
+                    """
+                elif is_rejected:
+                    btn_html = f"""
+                    <div style="background-color: {card_bg}; opacity: 0.55; border-top: 1px solid #E4EDF5; border-bottom: 1px solid #E4EDF5; border-right: 1px solid #E4EDF5; border-radius: 0 8px 8px 0; min-height: 85px; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        <a href="{approve_link}" target="_self" style="flex: 1; text-align: center; background-color: #FFFFFF; color: #10B981; padding: 10px 0; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 14px; display: block; line-height: 1; border: 1px solid #E2E8F0;" title="Approve Order">✓</a>
+                    </div>
+                    """
+                else:
+                    btn_html = f"""
+                    <div style="background-color: {card_bg}; opacity: {card_opacity}; border-top: 1px solid #E4EDF5; border-bottom: 1px solid #E4EDF5; border-right: 1px solid #E4EDF5; border-radius: 0 8px 8px 0; min-height: 85px; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        <a href="{approve_link}" target="_self" style="flex: 1; text-align: center; background-color: #F1F5F9; color: #10B981; padding: 10px 0; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 14px; display: block; line-height: 1; border: 1px solid #E2E8F0;" title="Approve Order">✓</a>
+                        <a href="{reject_link}" target="_self" style="flex: 1; text-align: center; background-color: #F1F5F9; color: #EF4444; padding: 10px 0; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 14px; display: block; line-height: 1; border: 1px solid #E2E8F0;" title="Reject Order">✗</a>
+                    </div>
+                    """
                 st.html(btn_html)
 
             st.write("")

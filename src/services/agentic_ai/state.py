@@ -11,5 +11,6 @@ class State(TypedDict):
     demand: Dict[str, Any]
     risk: str
     policy: str
+    policy_query: Optional[str]
     recommendation: str
     error: Optional[str]

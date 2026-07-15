@@ -8,9 +8,6 @@ from src.services.agentic_ai.agents.recommendation import recommendation_agent
 
 
 def route_after_risk(state:State):
-    if state.get('error'):
-        return 'recommendation'
-    
     risk=state.get('risk','').lower()
     if risk in ['high','medium']:
         return 'rag'
